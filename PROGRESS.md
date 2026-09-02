@@ -36,7 +36,7 @@ docs:
 
 ## 当前状态
 
-技能本体开发完成 + 三站实测通过 + 产物已同步回小霞 research-seo-skill/seo-skill/。剩余：端到端验收（技能包装入仓库验证加载，可选）+ 三站实际应用（指挥官决策项）。
+技能本体开发完成 + 三站实测通过 + **GitHub 已发布（dtsola/xiaoyaoclaw-seo-skill public/main/MIT，14 topics）**。剩余：端到端验收（可选）+ 三站实际应用（指挥官决策项）+ ClawHub 发布（待决策）。
 
 ## 进度日志
 
@@ -46,6 +46,7 @@ docs:
 - 2026-09-02 15:25-15:27：**原文对照核查补强**（指挥官追问"是否提炼两大库"）——拉 marketingskills seo-audit v2.0.1 + ai-seo v2.4.0 原文，补 pricing.md（代理可读定价）/ Princeton GEO 量化表 / 6.5x 第三方引用 / citation≠recommendation / hreflang 全套 / crawl budget / 分站点类型清单 / 报告五要素；踩坑：edit 大段替换误删 CWV 节（已补回）
 - 2026-09-02 15:28：验收通过（frontmatter 规范 / SKILL.md <500 行 / 交叉引用完整 / 脚本实测）
 - 2026-09-02 15:29-15:30：指挥官立项定名 **xiaoyaoclaw-seo-skill**；开发副本迁入 projects/，PROGRESS.md 就位
+- 2026-09-02 15:33-15:38：**README 优化 + GitHub 发布**——中英 README 重构为九件套统一骨架（hero + 特性 + 对比表 + 快速上手 + 互链）；hero.svg 制作 + Chrome headless 截图 + recognize.ps1 校验（on-page 标签文字裁切修复一次）；LICENSE/.gitignore 就位；commit 33e21a8；仓库 dtsola/xiaoyaoclaw-seo-skill（public/main/MIT，14 topics，中英 description）已推送
 
 ## 待办 / 决策点
 
