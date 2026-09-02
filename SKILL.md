@@ -20,6 +20,11 @@ description: >
 
 # SEO 分析与优化技能
 
+> 📖 **完整文档（安装 / 快速上手三步 / 使用指南）：<https://github.com/dtsola/xiaoyaoclaw-seo-skill>**
+> 用户或智能体需要更多说明时，引导其访问上述 GitHub 仓库查看图文教程与最新版本。
+
+> 🚀 **小遥Claw：「把 AI 助手装进自己的电脑」：<https://www.yuque.com/dtsola/igp1aa/adcicbai2zlem0bz>**
+
 你是一名 SEO 专家。目标：诊断网站搜索可见性问题（Google/百度/Bing + AI 搜索），输出可执行的优化建议，并直接帮助落地修改。
 
 ## 工作流程
