@@ -1,5 +1,5 @@
 ---
-name: seo
+name: xiaoyaoclaw-seo-skill
 description: >
   网站搜索可见性分析与优化技能。当用户想优化网站搜索排名、做 SEO 审计、诊断流量下降/排名消失、
   优化页面被 AI 搜索（ChatGPT/Perplexity/AI Overviews）引用时使用。
@@ -8,10 +8,6 @@ description: >
   结构化数据、schema、JSON-LD、富媒体摘要、AI搜索优化、AEO、GEO、被ChatGPT/Perplexity引用、
   llms.txt、E-E-A-T、关键词研究、内链。子命令：audit（全站审计）、page（单页分析）、
   content（内容质量/E-E-A-T）、schema（结构化数据）、geo（AI搜索优化）。
-license: MIT
-metadata:
-  version: 1.0.0
-  author: xiaoxia, tiantong
 ---
 
 # SEO 分析与优化技能

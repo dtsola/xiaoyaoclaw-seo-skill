@@ -47,14 +47,14 @@ git clone https://github.com/dtsola/xiaoyaoclaw-seo-skill
 ```bash
 # inside your website repo:
 mkdir -p .agents/skills
-cp -r xiaoyaoclaw-seo-skill .agents/skills/seo    # skill body
+cp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # skill body
 cp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code entry (one line → AGENTS.md)
 cp xiaoyaoclaw-seo-skill/AGENTS.md ./             # read by Codex/Cursor etc.
 ```
 
 **Option B: install into your AI tool's skill directory (global)**
 ```bash
-# Claude Code → ~/.claude/skills/seo/
+# Claude Code → ~/.claude/skills/xiaoyaoclaw-seo-skill/
 # Codex       → ~/.codex/skills/
 # Cursor      → .cursor/rules/
 # others      → corresponding Agent Skills dir

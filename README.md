@@ -47,14 +47,14 @@ git clone https://github.com/dtsola/xiaoyaoclaw-seo-skill
 ```bash
 # 在网站仓库根目录：
 mkdir -p .agents/skills
-cp -r xiaoyaoclaw-seo-skill .agents/skills/seo    # 技能本体
+cp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # 技能本体
 cp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code 入口（一行指向 AGENTS.md）
 cp xiaoyaoclaw-seo-skill/AGENTS.md ./             # Codex/Cursor 等读取
 ```
 
 **用法 B：装进 AI 工具的技能目录（全局可用）**
 ```bash
-# Claude Code → ~/.claude/skills/seo/
+# Claude Code → ~/.claude/skills/xiaoyaoclaw-seo-skill/
 # Codex       → ~/.codex/skills/
 # Cursor      → .cursor/rules/
 # 其他工具    → 对应 Agent Skills 目录
