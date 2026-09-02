@@ -1,0 +1,31 @@
+# robots.txt 通用模板（AI bot 显式放行版）
+# 用法：替换 <canonical-host> 为站点规范域名，放到站点根目录
+# 注意：静态托管/SPA 需确认部署平台不把 robots.txt rewrite 到 404/HTML 页
+
+User-agent: *
+Allow: /
+
+# AI 搜索/训练 bot 显式放行（内容站默认策略；如不想被爬可删对应行）
+User-agent: GPTBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Google-Extended
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# 屏蔽后台管理路径（示例，按实际调整）
+Disallow: /console
+Disallow: /admin
+
+Sitemap: https://<canonical-host>/sitemap.xml
