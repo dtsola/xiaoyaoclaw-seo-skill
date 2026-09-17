@@ -58,6 +58,10 @@ docs:
   - **验证**：安全负向测试全绿（13 类内网/保留地址拦截、nip.io 解析到 127.0.0.1 被拒、转义注入被剥、体积上限生效）＋ 功能回归（example.com 抓取/跨跳重定向正常）＋ **三站实测结论与原体检报告完全一致** ＋ hero 渲染 29KB PNG 且视觉复核无裁切溢出
   - 产出：`docs/security-status-2026-09-17.md` + 原始证据 `docs/evidence/security-v1.0.1-2026-09-17.json`（134 KB）
   - 待办：发 **v1.0.2** → 复扫；GitHub 推送待代理恢复
+- **2026-09-17 10:5x 指挥官批「发 v1.0.2」→ 已提交 ClawHub**
+  - 回执：`Update submitted for xiaoyaoclaw-seo-skill@1.0.2; pending security scans before it becomes public`
+  - 即时状态：`tags.latest` 仍 1.0.1 → 扫描未落地；已排一次性复查（cron `40528787`，11:30）
+  - ⏳ GitHub 仍待推（代理 22307 未监听）
 
 ## 待办 / 决策点
 
