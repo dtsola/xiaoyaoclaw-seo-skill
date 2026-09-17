@@ -1,0 +1,3073 @@
+{
+  "status": "suspicious",
+  "passed": false,
+  "rawStatus": "suspicious",
+  "verdict": "suspicious",
+  "confidence": "high",
+  "summary": "This is a coherent SEO helper, but its audit script can contact arbitrary or redirected web targets without enough limits, so it needs review before installation.",
+  "model": null,
+  "checkedAt": 1789558427336,
+  "scannerReports": {
+    "aig": {
+      "version": "2.1.0",
+      "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/main/Schemata/sarif-schema-2.1.0.json",
+      "runs": [
+        {
+          "tool": {
+            "driver": {
+              "name": "aig-skill-scan",
+              "version": "0.2.1",
+              "informationUri": "https://github.com/Tencent/AI-Infra-Guard",
+              "rules": [
+                {
+                  "id": "T01",
+                  "name": "Skill Instruction Hijacking",
+                  "shortDescription": {
+                    "text": "Alters the agent's current session goals or safety constraints when the skill is loaded"
+                  }
+                },
+                {
+                  "id": "T02",
+                  "name": "Agent Memory Poisoning",
+                  "shortDescription": {
+                    "text": "Writes attacker-controlled rules into persistent memory so they continue to affect future sessions"
+                  }
+                },
+                {
+                  "id": "T03",
+                  "name": "Remote Payload Retrieval and Execution",
+                  "shortDescription": {
+                    "text": "Fetches code from an external URL, allowing the effective payload to change after skill review"
+                  }
+                },
+                {
+                  "id": "T04",
+                  "name": "Embedded Malicious Code",
+                  "shortDescription": {
+                    "text": "Ships malicious scripts inside the skill package and executes them locally when invoked"
+                  }
+                },
+                {
+                  "id": "T05",
+                  "name": "Unauthorized Access and Privilege Escalation",
+                  "shortDescription": {
+                    "text": "Breaks least-privilege boundaries by obtaining permissions beyond the task's legitimate needs"
+                  }
+                },
+                {
+                  "id": "T06",
+                  "name": "System Persistence",
+                  "shortDescription": {
+                    "text": "Installs cross-session backdoors, hooks, services, or scheduled tasks that survive the skill run"
+                  }
+                },
+                {
+                  "id": "T07",
+                  "name": "Tool Hijacking and Spoofing",
+                  "shortDescription": {
+                    "text": "Modifies, wraps, spoofs, or replaces tools so legitimate-looking calls execute attacker logic"
+                  }
+                },
+                {
+                  "id": "T08",
+                  "name": "Insecure Dependencies",
+                  "shortDescription": {
+                    "text": "Introduces malicious packages or components through dependency confusion, typosquatting, or unsafe sources"
+                  }
+                },
+                {
+                  "id": "T09",
+                  "name": "Insecure Skill Coding Practices",
+                  "shortDescription": {
+                    "text": "Exposes exploitable flaws such as hardcoded secrets, command injection, plaintext sensitive data, or unsafe temp files"
+                  }
+                },
+                {
+                  "id": "other",
+                  "name": "Other Risk",
+                  "shortDescription": {
+                    "text": "Security issues not covered by the T01-T09 classification"
+                  }
+                }
+              ]
+            }
+          },
+          "results": [
+            {
+              "ruleId": "T09",
+              "level": "warning",
+              "message": {
+                "text": "Unrestricted Outbound Requests Permit Internal Network Probing"
+              },
+              "locations": [
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "scripts/seo-audit.js"
+                    },
+                    "region": {
+                      "startLine": 30,
+                      "endLine": 57
+                    }
+                  }
+                }
+              ],
+              "partialFingerprints": {
+                "primaryLocationLineHash": "a34fba146c6463fb"
+              },
+              "properties": {
+                "description": "<![CDATA[\n## Vulnerability Details\n**File Location**: `scripts/seo-audit.js:30-57, 127-168, 202, 237-246`  \n**Vulnerability Type**: Server-Side Request Forgery and insufficient destination validation  \n**Risk Level**: Medium  \n\n### Vulnerable Code\n\n```js\nasync function probe(url) {\n  try {\n    const res = await fetch(url, {\n      redirect: 'manual',\n      headers: { 'user-agent': UA },\n      signal: AbortSignal.timeout(10000),\n    });\n    return {\n      url,\n      status: res.status,\n      location: res.headers.get('location') || null,\n      ct: (res.headers.get('content-type') || '').slice(0, 60),\n    };\n  } catch (e) {\n    return { url, error: e.message };\n  }\n}\n\nasync function getText(url) {\n  try {\n    const res = await fetch(url, {\n      redirect: 'follow',\n      headers: { 'user-agent': UA },\n      signal: AbortSignal.timeout(10000),\n    });\n    if (!res.ok) return { ok: false, status: res.status, error: null, text: '', ct: '' };\n    const text = await res.text();\n    return { ok: true, status: res.status, error: null, text, ct: (res.headers.get('content-type') || '').slice(0, 60) };\n  } catch (e) {\n    return { ok: false, status: null, error: e.message, text: '', ct: '' };\n  }\n}\n```\n\n```js\nconst httpProbe = await probe(`http://${httpHost}/`);\nconst wwwProbe = await probe(`https://${other}/`);\n\nfor (const f of ['/robots.txt', '/sitemap.xml', '/llms.txt']) {\n  const r = await getText(`https://${httpHost}${f}`);\n  // ...\n}\n\nconst home = await getText(`https://${httpHost}/`);\n```\n\n```js\n(async () => {\n  const domains = process.argv.slice(2).map((d) => d.replace(/^https?:\\/\\//, '').replace(/\\/.*$/, ''));\n  if (!domains.length) {\n    console.log('用法: node seo-audit.js <domain> [more-domains...]');\n    console.log('例:   node seo-audit.js dtsola.com www.landoo.me project.xiaoyaosai.com');\n    process.exit(1);\n  }\n  for (const d of domains) {\n    await checkDomain(d);\n    await timeout(300);\n  }\n  console.log('\\nDONE');\n})();\n```\n\n### Technical Analysis\n\nThe command-line destination is normalized through regular-expression replacement but is not subjected to security validation. The implementation does not reject:\n\n- Loopback hosts and addresses\n- RFC 1918 private IPv4 addresses\n- IPv4 or IPv6 link-local addresses\n- IPv6 unique-local and loopback addresses\n- Reserved, unspecified, or multicast ranges\n- Hostnames that resolve to non-public addresses\n- DNS answers that change between validation and connection\n- Redirect destinations that resolve to internal resources\n\nThe `getText()` function compounds this issue by using `redirect: 'follow'`. Consequently, even if the original audit target is public, that server can redirect the request to an internal or local destination. No validation occurs for the resulting `Location` URL or its resolved addresses.\n\nPublic-site network retrieval is necessary for an SEO audit, but unrestricted access to local and private network destinations exceeds the minimum privileges required for that functionality.\n\n### Attack Path\n\n1. An attacker supplies, or persuades an operator or Agent to audit, a specially controlled hostname.\n2. The script requests the attacker's homepage, `robots.txt`, `sitemap.xml`, or `llms.txt`.\n3. The malicious server returns an HTTP redirect to a private service, such as a loopback, RFC 1918, or link-local address.\n4. `getText()` automatically follows that redirect without validating the new destination.\n5. The script connects to the internal service and reads its response.\n6. Status codes, content type, body length, and parsed SEO metadata may be exposed through the generated console report.\n\nA direct private or local hostname may also be supplied where the runtime's URL parsing accepts it, because the input processing does not enforce public-domain-only destinations.\n\n### Impact Assessment\n\nSuccessful exploitation can use the host running the Skill as a network-probing intermediary. The attacker may determine whether internal HTTP services exist and obtain limited information from their responses, including status codes, response types, body lengths, titles, descriptions, canonical URLs, headings, language attributes, and structured-data types.\n\nThe flaw does not provide arbitrary command execution or direct access to local files. Its scope is limited to destinations reachable by Node's HTTP client and to information processed or printed by the audit script. However, in an Agent environment with access to private infrastructure, this may cross a meaningful network trust boundary.\n]]>",
+                "severity": "Medium"
+              },
+              "fixes": [
+                {
+                  "description": {
+                    "text": "<![CDATA[\n## Remediation Suggestions\n\n1. Parse all input with the standard `URL` class instead of relying on regular-expression normalization.\n2. Permit only `http:` and `https:` schemes and reject URLs containing credentials, unexpected ports, malformed hostnames, or ambiguous address syntax.\n3. Resolve both A and AAAA records before each connection.\n4. Reject loopback, private, link-local, unique-local, multicast, unspecified, documentation, and reserved address ranges.\n5. Use `redirect: 'manual'` for all requests.\n6. If redirects are needed, resolve and validate every redirect target before following it.\n7. Apply a strict redirect limit and reject scheme changes or redirects to disallowed ports.\n8. Revalidate DNS for each request and consider pinning the validated address to mitigate DNS rebinding and time-of-check/time-of-use issues.\n9. In autonomous Agent deployments, require explicit user confirmation or an allowlist before contacting non-public or nonstandard destinations.\n10. Add tests covering IPv4, IPv6, encoded IP forms, localhost aliases, private DNS answers, and public-to-private redirects.\n]]>"
+                  }
+                }
+              ]
+            },
+            {
+              "ruleId": "T09",
+              "level": "note",
+              "message": {
+                "text": "Unbounded Response Buffering Can Cause Memory Exhaustion"
+              },
+              "locations": [
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "scripts/seo-audit.js"
+                    },
+                    "region": {
+                      "startLine": 47,
+                      "endLine": 57
+                    }
+                  }
+                }
+              ],
+              "partialFingerprints": {
+                "primaryLocationLineHash": "01fc7ab1da4025d8"
+              },
+              "properties": {
+                "description": "<![CDATA[\n## Vulnerability Details\n**File Location**: `scripts/seo-audit.js:47-57, 167-199, 202`  \n**Vulnerability Type**: Unbounded network response consumption  \n**Risk Level**: Low  \n\n### Vulnerable Code\n\n```js\nasync function getText(url) {\n  try {\n    const res = await fetch(url, {\n      redirect: 'follow',\n      headers: { 'user-agent': UA },\n      signal: AbortSignal.timeout(10000),\n    });\n    if (!res.ok) return { ok: false, status: res.status, error: null, text: '', ct: '' };\n    const text = await res.text();\n    return { ok: true, status: res.status, error: null, text, ct: (res.headers.get('content-type') || '').slice(0, 60) };\n  } catch (e) {\n    return { ok: false, status: null, error: e.message, text: '', ct: '' };\n  }\n}\n```\n\n```js\nfor (const f of ['/robots.txt', '/sitemap.xml', '/llms.txt']) {\n  const r = await getText(`https://${httpHost}${f}`);\n  // ...\n}\n\nconst home = await getText(`https://${httpHost}/`);\n```\n\n### Technical Analysis\n\n`res.text()` buffers the complete response body in memory before returning. The script does not enforce a maximum body size, inspect and limit `Content-Length`, or stop streaming after a safe byte threshold.\n\nThe ten-second timeout limits request duration but does not establish a reliable memory boundary. A server can return a large response rapidly within that period. The script makes up to four body-fetching requests for every supplied domain, and it does not cap the number of command-line domains.\n\n### Attack Path\n\n1. An attacker controls a website selected for an SEO audit.\n2. The site returns very large bodies for the homepage and one or more SEO files.\n3. The script calls `res.text()` for each response, causing Node.js to buffer each complete body.\n4. The process experiences excessive memory consumption and may slow down or terminate.\n5. Supplying multiple malicious domains increases resource consumption and the likelihood of denial of service.\n\n### Impact Assessment\n\nThe primary impact is local denial of service against the audit process. Depending on the runtime's memory limits and surrounding workload, this can cause process termination, degraded Agent availability, or resource pressure on the host.\n\nThis issue does not grant additional operating-system privileges, disclose credentials, or provide code execution. Its scope is resource exhaustion within the Node.js process and potentially the host running it.\n]]>",
+                "severity": "Low"
+              },
+              "fixes": [
+                {
+                  "description": {
+                    "text": "<![CDATA[\n## Remediation Suggestions\n\n1. Define conservative response-size limits for each resource type, such as smaller limits for `robots.txt` and `llms.txt` and a bounded limit for HTML and XML.\n2. Reject responses whose declared `Content-Length` exceeds the applicable limit.\n3. Do not rely solely on `Content-Length`, because it may be absent or dishonest.\n4. Consume `res.body` as a stream and abort the request immediately when the cumulative byte count exceeds the limit.\n5. Decode text only after bounded byte collection.\n6. Cap the number of domains accepted in one invocation.\n7. Optionally impose a total byte budget across the complete audit.\n8. Report oversized resources as audit failures rather than attempting to parse them.\n9. Add tests for oversized fixed-length responses, chunked responses, compressed responses, and multiple-domain amplification.\n]]>"
+                  }
+                }
+              ]
+            },
+            {
+              "ruleId": "T09",
+              "level": "note",
+              "message": {
+                "text": "Untrusted Website Metadata Is Printed Without Terminal-Safe Escaping"
+              },
+              "locations": [
+                {
+                  "physicalLocation": {
+                    "artifactLocation": {
+                      "uri": "scripts/seo-audit.js"
+                    },
+                    "region": {
+                      "startLine": 204,
+                      "endLine": 215
+                    }
+                  }
+                }
+              ],
+              "partialFingerprints": {
+                "primaryLocationLineHash": "e86785be17f57bca"
+              },
+              "properties": {
+                "description": "<![CDATA[\n## Vulnerability Details\n**File Location**: `scripts/seo-audit.js:204-215`  \n**Vulnerability Type**: Terminal control-sequence injection  \n**Risk Level**: Low  \n\n### Vulnerable Code\n\n```js\nif (home.ok && !looksLikeHtml(home.text)) {\n  console.log('       ⚠️ 首页返回非 HTML（可能是 API/重定向页）');\n} else if (home.ok) {\n  const m = extractMeta(home.text);\n  console.log(`       title: ${m.title || '❌ 无'}`);\n  console.log(`       meta description: ${m.metaDesc ? m.metaDesc.slice(0, 120) : '❌ 无'}`);\n  console.log(`       canonical: ${m.canonical || '❌ 无'}`);\n  console.log(`       H1: ${m.h1Count} 个${m.h1Samples.length ? ' → ' + JSON.stringify(m.h1Samples) : ''} | H2: ${m.h2Count} 个`);\n  console.log(`       JSON-LD: ${m.jsonldCount} 个${m.jsonldTypes.length ? ' → ' + m.jsonldTypes.join(',') : ''}（⚠️ 静态检测，JS 注入需浏览器复核）`);\n  console.log(`       viewport: ${m.viewport ? '✅' : '❌ 无'} | lang: ${m.lang || '❌ 无'} | robots meta: ${m.robotsMeta || '无'}`);\n```\n\n### Technical Analysis\n\nThe Skill correctly states that fetched website content is untrusted, but the executable script writes values derived from that content directly to an interactive terminal.\n\nAn attacker-controlled page can place control characters or ANSI/OSC escape sequences in its title, meta description, canonical URL, heading text, language attribute, robots metadata, or JSON-LD type values. Character-count truncation does not make these values terminal-safe because escape sequences may fit within the retained portion.\n\n`JSON.stringify()` protects string syntax but does not necessarily provide a complete terminal-control sanitization boundary for all emitted values and terminal behaviors.\n\n### Attack Path\n\n1. An attacker creates a page containing terminal escape sequences in SEO metadata or headings.\n2. An operator or autonomous Agent runs the audit against that page.\n3. `extractMeta()` extracts the attacker-controlled value.\n4. The value is interpolated directly into `console.log()`.\n5. The terminal interprets the sequence rather than displaying it as inert text.\n6. The attacker may alter the visual report, hide warnings, forge output, change terminal presentation, or trigger terminal-specific features.\n\n### Impact Assessment\n\nThe most broadly applicable impact is output spoofing: findings can be concealed or attacker-selected text can appear to originate from the trusted audit script. Depending on terminal capabilities and configuration, additional effects such as clipboard manipulation may be possible.\n\nThe issue does not by itself provide shell execution or elevated system privileges. Its scope depends on the terminal emulator and on whether the output is viewed interactively, copied into logs, or consumed by another tool.\n]]>",
+                "severity": "Low"
+              },
+              "fixes": [
+                {
+                  "description": {
+                    "text": "<![CDATA[\n## Remediation Suggestions\n\n1. Treat every value extracted from network responses as untrusted before displaying it.\n2. Remove C0 and C1 control characters except any explicitly permitted formatting characters.\n3. Strip ANSI CSI sequences and OSC sequences, including BEL- and ST-terminated variants.\n4. Escape newline, carriage-return, tab, and other layout-affecting characters where single-line output is expected.\n5. Use a centralized `sanitizeForTerminal()` function for titles, descriptions, canonical URLs, headings, language values, robots metadata, JSON-LD types, redirect locations, error messages, and response headers.\n6. Consider structured JSON output with proper serialization for machine consumers, while retaining sanitization for interactive terminal output.\n7. Add regression tests containing ANSI color codes, cursor movement, line clearing, OSC hyperlinks, clipboard sequences, carriage returns, and embedded newlines.\n]]>"
+                  }
+                }
+              ]
+            }
+          ],
+          "properties": {
+            "securityScore": 55,
+            "primaryLanguage": "Markdown",
+            "llm": "gpt-5.6",
+            "startTime": 1789558247.7758505,
+            "endTime": 1789558358.7043908
+          }
+        }
+      ]
+    },
+    "skillspector": {
+      "skill": {
+        "name": "xiaoyaoclaw-seo-skill",
+        "source": "/tmp/clawhub-codex-scan-v57de5y79tbqmnqfxzpqts05xs8egt31-gWbfkL/clawscan-skillspector-3484920495/artifact",
+        "scanned_at": "2026-09-16T11:30:37.967048+00:00"
+      },
+      "risk_assessment": {
+        "score": 78,
+        "severity": "HIGH",
+        "recommendation": "DO_NOT_INSTALL",
+        "max_issue_severity": "HIGH"
+      },
+      "components": [
+        {
+          "path": "AGENTS.md",
+          "type": "markdown",
+          "lines": 33,
+          "executable": false,
+          "size_bytes": 1731,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "CLAUDE.md",
+          "type": "markdown",
+          "lines": 1,
+          "executable": false,
+          "size_bytes": 10,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "LICENSE",
+          "type": "other",
+          "lines": 21,
+          "executable": false,
+          "size_bytes": 1063,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "PROGRESS.md",
+          "type": "markdown",
+          "lines": 55,
+          "executable": false,
+          "size_bytes": 3945,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "README.en.md",
+          "type": "markdown",
+          "lines": 192,
+          "executable": false,
+          "size_bytes": 11318,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "README.md",
+          "type": "markdown",
+          "lines": 192,
+          "executable": false,
+          "size_bytes": 11375,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "SKILL.md",
+          "type": "markdown",
+          "lines": 185,
+          "executable": false,
+          "size_bytes": 13189,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "assets/examples/jsonld-site.template.json",
+          "type": "json",
+          "lines": 32,
+          "executable": false,
+          "size_bytes": 904,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "assets/examples/llms.txt.dtsola.example",
+          "type": "other",
+          "lines": 23,
+          "executable": false,
+          "size_bytes": 945,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "assets/examples/llms.txt.landoo.example",
+          "type": "other",
+          "lines": 22,
+          "executable": false,
+          "size_bytes": 967,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "assets/examples/llms.txt.xiaoyaoai.example",
+          "type": "other",
+          "lines": 22,
+          "executable": false,
+          "size_bytes": 988,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "assets/examples/robots.txt.template",
+          "type": "other",
+          "lines": 31,
+          "executable": false,
+          "size_bytes": 692,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "assets/readme/community-qr.png",
+          "type": "other",
+          "lines": 2367,
+          "executable": false,
+          "size_bytes": 97430,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "assets/readme/hero.svg",
+          "type": "other",
+          "lines": 54,
+          "executable": false,
+          "size_bytes": 4423,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "references/ai-seo.md",
+          "type": "markdown",
+          "lines": 199,
+          "executable": false,
+          "size_bytes": 9623,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "references/content-quality.md",
+          "type": "markdown",
+          "lines": 122,
+          "executable": false,
+          "size_bytes": 6228,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "references/on-page.md",
+          "type": "markdown",
+          "lines": 105,
+          "executable": false,
+          "size_bytes": 5034,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "references/schema.md",
+          "type": "markdown",
+          "lines": 141,
+          "executable": false,
+          "size_bytes": 5404,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "references/technical-seo.md",
+          "type": "markdown",
+          "lines": 229,
+          "executable": false,
+          "size_bytes": 13882,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        },
+        {
+          "path": "scripts/seo-audit.js",
+          "type": "javascript",
+          "lines": 249,
+          "executable": true,
+          "size_bytes": 13013,
+          "source_url": null,
+          "source_identity": null,
+          "source_digest": null
+        }
+      ],
+      "structured_summaries": [],
+      "issues": [
+        {
+          "id": "P2",
+          "finding_id": "finding-2935154c32534f33b0a338b6fb7a7201",
+          "category": "Prompt Injection",
+          "pattern": "Hidden Instructions",
+          "severity": "HIGH",
+          "confidence": 0.7,
+          "location": {
+            "file": "assets/readme/hero.svg",
+            "start_line": 7,
+            "end_line": null
+          },
+          "finding": "<!-- left: title block -->\n  <g id=\"title-block\" transform=\"translate(56 40)\">\n    <text x=\"0\" y=\"44\" font-family=\"ui-monospace, SFMono-Regular, Menlo, monospace\" font-size=\"20\" letter-spacing=\"4\" fil",
+          "explanation": "Hidden instructions were detected in comments or invisible text. These could contain malicious directives. Manual review is recommended.",
+          "remediation": "Audit all comments and invisible characters. Remove any instructions that direct the agent to perform unauthorized actions. Use plain, reviewable content.",
+          "code_snippet": "\n  <rect width=\"1200\" height=\"360\" rx=\"20\" fill=\"#0d1117\"/>\n\n  <!-- left: title block -->\n  <g id=\"title-block\" transform=\"translate(56 40)\">\n    <text x=\"0\" y=\"44\" font-family=\"ui-monospace, SFMono-Regular, Menlo, monospace\" font-size=\"20\" letter-spacing=\"4\" fill=\"#8b949e\">AGENT SKILL · SEO</text>\n",
+          "intent": null,
+          "tags": [
+            "Prompt Injection",
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": "0570cae6589cf5e87473dce2bd3b5ffa8f0bb7f88390f9550a665b0ba430bbee",
+          "occurrences": [
+            {
+              "file": "assets/readme/hero.svg",
+              "start_line": 7,
+              "end_line": null
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-338250357b7a4e1e977fb7ff990d4018",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.94,
+          "location": {
+            "file": "AGENTS.md",
+            "start_line": 3,
+            "end_line": 3
+          },
+          "finding": null,
+          "explanation": "The document presents the skill instructions entirely in Chinese and does not indicate that the user can choose another language or locale. Under the policy, forcing a specific language without opt-in is a natural-language policy violation unless the locale restriction is documented and justified.",
+          "remediation": "State that the skill should respond in the user's preferred language, or explicitly offer language selection. If Chinese-only behavior is intentional, document the locale constraint and justification clearly.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "AGENTS.md",
+              "start_line": 3,
+              "end_line": 3
+            }
+          ]
+        },
+        {
+          "id": "RA2",
+          "finding_id": "finding-3055330c197b4316bf6f1b7c0e7895f2",
+          "category": "Rogue Agent",
+          "pattern": "Session Persistence",
+          "severity": "MEDIUM",
+          "confidence": 0.6,
+          "location": {
+            "file": "README.en.md",
+            "start_line": 30,
+            "end_line": null
+          },
+          "finding": "write suggestions\n- ✍️ **content — quality & keywords**: search-intent classification, keyword research (incl. AI fan-out), E-E-A-T signals, keyword cannibalization checks\n- 🧩 **schema — structured da",
+          "explanation": "Skill establishes unauthorized persistence across sessions via cron jobs, startup scripts, or state files. Session persistence allows an attacker to maintain access beyond the current interaction.",
+          "remediation": "Remove any persistence mechanisms (cron jobs, startup scripts, state files). Skills should not maintain state across sessions without explicit user consent.",
+          "code_snippet": "## Features\n\n- 🔍 **audit — full-site technical SEO**: crawlability & indexation → technical foundations → on-page → content quality → authority/links, graded 🔴🟠🟡, each item with Issue / Impact / Evidence / Fix / Verify\n- 📄 **page — deep single-URL analysis**: title / meta description / H1 structure / keyword placement / image alt / internal links, with copy-paste rewrite suggestions\n- ✍️ **content — quality & keywords**: search-intent classification, keyword research (incl. AI fan-out), E-E-A-T signals, keyword cannibalization checks\n- 🧩 **schema — structured data**: JSON-LD templates for common types + browser-render detection (static fetches miss JS-injected schema)\n- 🤖 **geo — AI search (AEO/GEO)**: llms.txt, AI bot list & robots policy, `/pricing.md` for AI buying agents, Princeton GEO quantified methods",
+          "intent": null,
+          "tags": [
+            "Rogue Agent",
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": "f7083e89ec3b6e2c011b3ee34e1fa0ae3740bc0568155572f6aaf6e066418123",
+          "occurrences": [
+            {
+              "file": "README.en.md",
+              "start_line": 30,
+              "end_line": null
+            }
+          ]
+        },
+        {
+          "id": "SQP-1",
+          "finding_id": "finding-0e2938c78d854f7ebb9c01c3d9bb5c51",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.94,
+          "location": {
+            "file": "README.en.md",
+            "start_line": 68,
+            "end_line": 68
+          },
+          "finding": null,
+          "explanation": "This markdown file describes invoking the skill with phrases like \"audit this site's SEO\" and \"why isn't my page cited by AI?\" and says \"the skill picks the workflow,\" but it does not define boundaries, exclusions, or negative examples for when these phrases should or should not activate the skill. Because SQP-1 applies to markdown files, these broad examples can create ambiguous invocation behavior in general chat contexts.",
+          "remediation": "List explicit trigger phrases or commands, define the contexts where the skill is expected to activate, and add negative examples such as ordinary discussion phrases that should not invoke the skill.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "README.en.md",
+              "start_line": 68,
+              "end_line": 68
+            }
+          ]
+        },
+        {
+          "id": "RA2",
+          "finding_id": "finding-57e1b90fd1d44f898383ea73fd3f4c59",
+          "category": "Rogue Agent",
+          "pattern": "Session Persistence",
+          "severity": "MEDIUM",
+          "confidence": 0.6,
+          "location": {
+            "file": "README.md",
+            "start_line": 49,
+            "end_line": null
+          },
+          "finding": "mkdir -p .agents/skills\ncp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # 技能本体\ncp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code 入口（一行指向 AGENTS.md）\ncp xiaoyaoclaw-seo-",
+          "explanation": "Skill establishes unauthorized persistence across sessions via cron jobs, startup scripts, or state files. Session persistence allows an attacker to maintain access beyond the current interaction.",
+          "remediation": "Remove any persistence mechanisms (cron jobs, startup scripts, state files). Skills should not maintain state across sessions without explicit user consent.",
+          "code_snippet": "**用法 A：放进网站仓库做项目级 SEO 规范（推荐）**\n```bash\n# 在网站仓库根目录：\nmkdir -p .agents/skills\ncp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # 技能本体\ncp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code 入口（一行指向 AGENTS.md）\ncp xiaoyaoclaw-seo-skill/AGENTS.md ./             # Codex/Cursor 等读取",
+          "intent": null,
+          "tags": [
+            "Rogue Agent",
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": "b282000f2e84d05a7effe7738e07d4841d87942690c1e6fec1d9b0188a2e1940",
+          "occurrences": [
+            {
+              "file": "README.md",
+              "start_line": 49,
+              "end_line": null
+            }
+          ]
+        },
+        {
+          "id": "RA2",
+          "finding_id": "finding-9a8a5de03cba47728a2ba85f717e28e8",
+          "category": "Rogue Agent",
+          "pattern": "Session Persistence",
+          "severity": "MEDIUM",
+          "confidence": 0.6,
+          "location": {
+            "file": "README.md",
+            "start_line": 49,
+            "end_line": null
+          },
+          "finding": "mkdir -p .agents/skills\ncp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # 技能本体\ncp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code 入口(一行指向 AGENTS.md)\ncp xiaoyaoclaw-seo-",
+          "explanation": "Skill establishes unauthorized persistence across sessions via cron jobs, startup scripts, or state files. Session persistence allows an attacker to maintain access beyond the current interaction.",
+          "remediation": "Remove any persistence mechanisms (cron jobs, startup scripts, state files). Skills should not maintain state across sessions without explicit user consent.",
+          "code_snippet": "**用法 A:放进网站仓库做项目级 SEO 规范(推荐)**\n```bash\n# 在网站仓库根目录:\nmkdir -p .agents/skills\ncp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # 技能本体\ncp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code 入口(一行指向 AGENTS.md)\ncp xiaoyaoclaw-seo-skill/AGENTS.md ./             # Codex/Cursor 等读取",
+          "intent": null,
+          "tags": [
+            "Rogue Agent",
+            "normalized-view",
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": "28222fcb68ed7644db477fd82751818d7459a31e8dbfb0c1e46d362c660b276b",
+          "occurrences": [
+            {
+              "file": "README.md",
+              "start_line": 49,
+              "end_line": null
+            }
+          ]
+        },
+        {
+          "id": "SQP-1",
+          "finding_id": "finding-2339072f58cf4b86812d9f74e0a698d9",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.91,
+          "location": {
+            "file": "README.md",
+            "start_line": 68,
+            "end_line": 68
+          },
+          "finding": null,
+          "explanation": "The invocation examples “审计一下这个站的 SEO”, “优化这篇文章的关键词”, and “为什么我的页面不被 AI 引用” are ordinary conversational requests rather than narrowly scoped trigger phrases. The README does not provide exclusion conditions or clearer boundaries for when the skill should or should not auto-activate, increasing the risk of unintended invocation.",
+          "remediation": "Document a more specific activation scheme, such as explicit command patterns, required context, or tool-scoped invocation rules. Add negative examples showing similar everyday phrases that should not trigger the skill.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "README.md",
+              "start_line": 68,
+              "end_line": 68
+            }
+          ]
+        },
+        {
+          "id": "SQP-2",
+          "finding_id": "finding-63fe3def5ce3404b88d705d9f8fd8921",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.88,
+          "location": {
+            "file": "README.md",
+            "start_line": 74,
+            "end_line": 74
+          },
+          "finding": null,
+          "explanation": "The README states that after confirmation the skill can directly modify code or configuration, but it does not warn that SEO-related changes can affect production routing, crawlability, indexing, or site availability. In an agent setting, this increases the chance of unsafe automated edits to files like robots.txt, redirects, canonicals, or structured data without adequate review, potentially causing search deindexing or service regressions.",
+          "remediation": "Add explicit safety guidance requiring dry-run analysis first, human approval before changing production configs, backups/version control, and post-change validation in staging. The README should specifically call out high-risk targets such as robots.txt, sitemaps, redirects, canonicals, DNS, and framework routing config.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "README.md",
+              "start_line": 74,
+              "end_line": 74
+            }
+          ]
+        },
+        {
+          "id": "LP3",
+          "finding_id": "finding-b897fb1a1d2242b994db177cc925cb84",
+          "category": "MCP Least Privilege",
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.9,
+          "location": {
+            "file": "SKILL.md",
+            "start_line": 1,
+            "end_line": null
+          },
+          "finding": null,
+          "explanation": "The skill clearly instructs the agent to perform network-based actions such as fetching robots.txt, sitemap.xml, HTTP headers, and using browser-based rendering, but the manifest does not declare any tool scope or allowed-tools restriction. This creates an overbroad execution surface where an agent may use whatever network capabilities are available in the host environment, increasing the risk of unintended outbound requests, SSRF-like misuse against internal resources, or policy bypass through undeclared tool use.",
+          "remediation": "Explicitly declare the minimum required tool permissions or allowed-tools for network access in the skill manifest, and restrict them to only the necessary fetch/browser tools. Add hostname/scheme constraints where supported, document that only user-supplied public web targets may be accessed, and prohibit access to localhost, RFC1918/private IP ranges, cloud metadata endpoints, and other internal network destinations.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "ASI02"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "SKILL.md",
+              "start_line": 1,
+              "end_line": null
+            }
+          ]
+        },
+        {
+          "id": "SQP-1",
+          "finding_id": "finding-90a9589e376a4fcfb2a021b2e6e2c919",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.93,
+          "location": {
+            "file": "SKILL.md",
+            "start_line": 8,
+            "end_line": 17
+          },
+          "finding": null,
+          "explanation": "The manifest advertises very broad trigger phrases such as SEO, sitemap, schema, traffic drop, and related generic terms in both English and Chinese, which can cause the skill to activate for a wide range of common conversations. Over-triggering can route unrelated user requests into a network-capable skill, unnecessarily exposing browsing/fetch tools and increasing the chance of unintended data access or external requests.",
+          "remediation": "Narrow the trigger phrases to more specific SEO audit intents and require stronger routing criteria, such as combinations of terms or explicit requests for website analysis. Remove highly generic standalone triggers, add disambiguation guidance for the router, and prefer activation only when a URL/site audit or concrete SEO diagnostic task is explicitly requested.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "SKILL.md",
+              "start_line": 8,
+              "end_line": 17
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-ce22ad0ad86b4ad9a5c25d0935f5dbfb",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.93,
+          "location": {
+            "file": "assets/examples/jsonld-site.template.json",
+            "start_line": 24,
+            "end_line": 24
+          },
+          "finding": null,
+          "explanation": "The JSON-LD template sets \"inLanguage\" to \"zh-CN\", which is a natural-language locale constraint. In this file, there is no accompanying documentation or option indicating user opt-in or that the template is intended only for a China-specific site, so it may violate the policy against forcing a specific locale without justification.",
+          "remediation": "Make the language value configurable, document that the template is specifically for Chinese-language sites, or provide alternatives/examples for other locales so users can choose the appropriate language setting.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "assets/examples/jsonld-site.template.json",
+              "start_line": 24,
+              "end_line": 24
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-a8af7e2adcd44d059ef395bb2d0cd437",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.95,
+          "location": {
+            "file": "references/content-quality.md",
+            "start_line": 1,
+            "end_line": 1
+          },
+          "finding": null,
+          "explanation": "The title and the entire reference content are written as a Chinese-only instruction resource, and there is no indication that users may choose another language. Under the policy rule, forcing a specific language without opt-in is a natural-language policy violation unless the locale restriction is explicitly justified.",
+          "remediation": "Add a clear note that the language is configurable based on user preference, or document why this reference is intentionally limited to Chinese for a specific audience or region. If applicable, provide bilingual guidance or an explicit opt-in for Chinese output.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "references/content-quality.md",
+              "start_line": 1,
+              "end_line": 1
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-58464e28717b4e86b79576174939aa57",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.93,
+          "location": {
+            "file": "references/schema.md",
+            "start_line": 1,
+            "end_line": 1
+          },
+          "finding": null,
+          "explanation": "The title and body present the skill material entirely in Chinese, with no indication that users can choose another language or that the file is limited to a Chinese-only audience. Under the policy, forcing a specific language without opt-in is a natural-language policy concern.",
+          "remediation": "Document that this reference is intended only for a Chinese-language or region-specific workflow, or add an explicit note offering language choice / alternative localized versions.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "references/schema.md",
+              "start_line": 1,
+              "end_line": 1
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-0200add22c78497382871425c5d35a28",
+          "category": null,
+          "pattern": null,
+          "severity": "MEDIUM",
+          "confidence": 0.86,
+          "location": {
+            "file": "references/technical-seo.md",
+            "start_line": 1,
+            "end_line": 1
+          },
+          "finding": null,
+          "explanation": "The title and the entire reference content are written in Chinese, and the file does not indicate that Chinese is optional or that users may request another language. Under the policy, forcing a specific language without user opt-in is a natural-language locale violation unless the constraint is explicitly justified.",
+          "remediation": "Add a clear note that the reference is Chinese-only by design and justified for a China-focused workflow, or state that the assistant should adapt the output language to the user's preference and provide/allow an alternative-language version.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "references/technical-seo.md",
+              "start_line": 1,
+              "end_line": 1
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-fc9c82f52021409e949c88412be8e237",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.85,
+          "location": {
+            "file": "README.en.md",
+            "start_line": 132,
+            "end_line": 132
+          },
+          "finding": null,
+          "explanation": "The comparison table states \"Chinese-first (EN terms kept),\" which is a natural-language locale preference. Under SQP-3, forcing or preferring a specific language without offering user choice can be a policy concern, and this line does not present an opt-in or configurable language option.",
+          "remediation": "State that the skill supports multiple languages based on user preference, or explicitly document how users can select English or Chinese output.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "README.en.md",
+              "start_line": 132,
+              "end_line": 132
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-446e1a26fa7e49e8916ae5788cc14ffc",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.79,
+          "location": {
+            "file": "assets/examples/llms.txt.dtsola.example",
+            "start_line": 8,
+            "end_line": 8
+          },
+          "finding": null,
+          "explanation": "The text states '内容语言：中文', which is a natural-language locale constraint. Under the policy rule, forcing a specific language without offering user choice or opt-in can be a locale-policy violation, and this file does not mention any alternative language support or opt-in mechanism.",
+          "remediation": "Clarify that Chinese is the primary language while offering alternatives if available, or document a justified region/language scope such as 'This blog is primarily published in Chinese for its target audience.'",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "assets/examples/llms.txt.dtsola.example",
+              "start_line": 8,
+              "end_line": 8
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-369c8a12b7414a9fae4292f9f98998e4",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.89,
+          "location": {
+            "file": "assets/examples/llms.txt.landoo.example",
+            "start_line": 8,
+            "end_line": 8
+          },
+          "finding": null,
+          "explanation": "The text explicitly states \"内容语言：中文\", which imposes a single language setting in natural language. Under the policy criteria, locale or language constraints should either offer user choice or be clearly justified as region-specific; this file does not provide either.",
+          "remediation": "Document that the site is intentionally region-specific and justify the Chinese-only constraint, or state that other languages may be available on request / with user opt-in.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "assets/examples/llms.txt.landoo.example",
+              "start_line": 8,
+              "end_line": 8
+            }
+          ]
+        },
+        {
+          "id": "SQP-1",
+          "finding_id": "finding-467d575169de4716801c7cb988093461",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.83,
+          "location": {
+            "file": "assets/examples/llms.txt.xiaoyaoai.example",
+            "start_line": 21,
+            "end_line": 21
+          },
+          "finding": null,
+          "explanation": "This plain-text file states that AI engines are allowed to cite the site's content, but it does not define any narrower trigger conditions, scope boundaries, or exclusions for when such use is intended. Because SQP-1 applies to plain text files, this broad permission can be read ambiguously and lacks specificity on constraints or negative examples.",
+          "remediation": "Clarify the exact scope of permitted AI use, such as which content may be cited, under what contexts, and any exclusions. Add explicit constraints or negative examples so the permission cannot be interpreted overly broadly.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "assets/examples/llms.txt.xiaoyaoai.example",
+              "start_line": 21,
+              "end_line": 21
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-38d16bb5ffb5474eaa43bf6ee30aa380",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.95,
+          "location": {
+            "file": "assets/examples/robots.txt.template",
+            "start_line": 1,
+            "end_line": 3
+          },
+          "finding": null,
+          "explanation": "The template comments and usage instructions are written entirely in Chinese, which imposes a specific language on users without any opt-in or indication that the skill is intentionally region-specific. This matches the language/locale policy violation category for natural-language content.",
+          "remediation": "Provide bilingual instructions, add an explicit language choice, or document that this template is intended only for a Chinese-speaking or region-specific audience.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "assets/examples/robots.txt.template",
+              "start_line": 1,
+              "end_line": 3
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-55009effae2d45849f271caa3942673b",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.91,
+          "location": {
+            "file": "assets/readme/hero.svg",
+            "start_line": 13,
+            "end_line": 13
+          },
+          "finding": null,
+          "explanation": "This SVG contains user-facing natural-language content in Chinese ('网站搜索可见性分析与优化') while adjacent text is in English, with no indication that the skill is intentionally region-specific or that users can choose language/locale. That can violate the language/locale policy because the file imposes a specific language presentation without opt-in or justification.",
+          "remediation": "Either make the language/locale choice explicit in surrounding skill materials, provide separate localized variants, or document that this asset is intended for a specific audience/region.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "assets/readme/hero.svg",
+              "start_line": 13,
+              "end_line": 13
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-b65082bd58f64fa19f93695090086dca",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.9,
+          "location": {
+            "file": "references/ai-seo.md",
+            "start_line": 1,
+            "end_line": 199
+          },
+          "finding": null,
+          "explanation": "This markdown reference forces a specific language for all instructions and examples, and there is no note offering alternative languages or user opt-in. The policy explicitly calls for flagging language or locale constraints when they are imposed without choice or justification.",
+          "remediation": "Add a brief note stating the document is available in Chinese by default and offer an English or multilingual alternative, or explain why Chinese-only content is required for this skill's intended audience/context.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "references/ai-seo.md",
+              "start_line": 1,
+              "end_line": 199
+            }
+          ]
+        },
+        {
+          "id": "SQP-3",
+          "finding_id": "finding-06a4656534fb4a73b36cd68f6deccd8e",
+          "category": null,
+          "pattern": null,
+          "severity": "LOW",
+          "confidence": 0.91,
+          "location": {
+            "file": "scripts/seo-audit.js",
+            "start_line": 3,
+            "end_line": 19
+          },
+          "finding": null,
+          "explanation": "This code file includes user-facing natural-language documentation and console usage guidance entirely in Chinese, with no indication that the skill is region-specific or that other languages are supported. Under the policy rule, forcing a specific language without user opt-in is a locale-policy violation.",
+          "remediation": "Document that the skill is intended only for a Chinese-speaking audience, or add bilingual/locale-selectable usage text and output so users are not forced into a single language unexpectedly.",
+          "code_snippet": null,
+          "intent": null,
+          "tags": [
+            "llm-unconfirmed"
+          ],
+          "evidence": {},
+          "match_fingerprint": null,
+          "occurrences": [
+            {
+              "file": "scripts/seo-audit.js",
+              "start_line": 3,
+              "end_line": 19
+            }
+          ]
+        }
+      ],
+      "suppressed_count": 0,
+      "suppressed": [],
+      "metadata": {
+        "has_executable_scripts": true,
+        "skillspector_version": "2.11.2",
+        "llm_requested": true,
+        "llm_available": true,
+        "meta_analysis_applied": true,
+        "inference_usage": [
+          {
+            "node": "mcp_tool_poisoning",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 4480,
+            "completion_tokens": 292,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 4772
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1612,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1626
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2207,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 2221
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1885,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1899
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3079,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3093
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5111,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5125
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5562,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5576
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 6063,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 6077
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1950,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1964
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1968,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1982
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1967,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1981
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1963,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1977
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5242,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5256
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1912,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1926
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3235,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3249
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3897,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3911
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3497,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3511
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 6532,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 6546
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3690,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3704
+          },
+          {
+            "node": "semantic_developer_intent",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 6257,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 6271
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1377,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1391
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1650,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1664
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2844,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 2858
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1972,
+            "completion_tokens": 147,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 2119
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 4876,
+            "completion_tokens": 329,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5205
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5327,
+            "completion_tokens": 350,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5677
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5828,
+            "completion_tokens": 164,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5992
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1715,
+            "completion_tokens": 166,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1881
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1732,
+            "completion_tokens": 148,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1880
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1733,
+            "completion_tokens": 159,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1892
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1728,
+            "completion_tokens": 174,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1902
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3262,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3276
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1677,
+            "completion_tokens": 144,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1821
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3000,
+            "completion_tokens": 170,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3170
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3662,
+            "completion_tokens": 172,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3834
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5007,
+            "completion_tokens": 149,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5156
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3455,
+            "completion_tokens": 148,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3603
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 6022,
+            "completion_tokens": 159,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 6181
+          },
+          {
+            "node": "semantic_quality_policy",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 6297,
+            "completion_tokens": 168,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 6465
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1504,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1518
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 909,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 923
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1182,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1196
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2376,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 2390
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 4408,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 4422
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 4859,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 4873
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5360,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5374
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1247,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1261
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1265,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1279
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1264,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1278
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1260,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1274
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1209,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1223
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2532,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 2546
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 4539,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 4553
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3194,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3208
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2794,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 2808
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2987,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3001
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5829,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5843
+          },
+          {
+            "node": "semantic_security_discovery",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5554,
+            "completion_tokens": 14,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5568
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1452,
+            "completion_tokens": 194,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1646
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1725,
+            "completion_tokens": 216,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1941
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1488,
+            "completion_tokens": 227,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1715
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1531,
+            "completion_tokens": 210,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1741
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1533,
+            "completion_tokens": 219,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1752
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 1530,
+            "completion_tokens": 232,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 1762
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2899,
+            "completion_tokens": 340,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3239
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 4481,
+            "completion_tokens": 500,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 4981
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 4220,
+            "completion_tokens": 199,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 4419
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 3135,
+            "completion_tokens": 218,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3353
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5389,
+            "completion_tokens": 204,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5593
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 2876,
+            "completion_tokens": 208,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 3084
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5121,
+            "completion_tokens": 201,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5322
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5142,
+            "completion_tokens": 496,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5638
+          },
+          {
+            "node": "meta_analyzer",
+            "request_kind": "structured_output",
+            "provider": "openai",
+            "model": "gpt-5.4-2026-03-05",
+            "model_source": "provider_response",
+            "usage_source": "provider_response",
+            "prompt_tokens": 5134,
+            "completion_tokens": 714,
+            "cached_tokens": 0,
+            "reasoning_tokens": 0,
+            "total_tokens": 5848
+          }
+        ],
+        "llm_calls_attempted": 5,
+        "llm_calls_succeeded": 5
+      },
+      "execution_successful": true,
+      "analysis_completeness": {
+        "total_components": 19,
+        "scanned_components": 18,
+        "coverage_percent": 94.7,
+        "is_complete": false,
+        "status": "partial",
+        "execution_successful": true,
+        "fully_inspected_files": 18,
+        "partially_inspected_files": 1,
+        "entirely_uninspected_files": 0,
+        "ledger_exceptions": [
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 5,
+            "end_line": 5,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 6,
+            "end_line": 6,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 7,
+            "end_line": 7,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 58,
+            "end_line": 58,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 59,
+            "end_line": 59,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 65,
+            "end_line": 65,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 66,
+            "end_line": 66,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 67,
+            "end_line": 67,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 68,
+            "end_line": 68,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 69,
+            "end_line": 69,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 73,
+            "end_line": 73,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 89,
+            "end_line": 89,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 98,
+            "end_line": 98,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 100,
+            "end_line": 100,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 116,
+            "end_line": 116,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 140,
+            "end_line": 140,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 141,
+            "end_line": 141,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 145,
+            "end_line": 145,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 148,
+            "end_line": 148,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 150,
+            "end_line": 150,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 154,
+            "end_line": 154,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 160,
+            "end_line": 160,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 163,
+            "end_line": 163,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "reference_resolution",
+            "reason_code": "reference_unresolved",
+            "message": "A local path-like reference could not be resolved unambiguously.",
+            "path": "SKILL.md",
+            "start_line": 168,
+            "end_line": 168,
+            "fatal": false
+          },
+          {
+            "outcome": "partial",
+            "phase": "static",
+            "reason_code": "static_parse_limit",
+            "message": "A security-relevant expression exceeded a bounded static parser's span limit.",
+            "path": "scripts/seo-audit.js",
+            "start_line": null,
+            "end_line": null,
+            "fatal": false,
+            "analyzers": [
+              "static_patterns_tool_misuse"
+            ]
+          }
+        ],
+        "scope_exclusions": [
+          {
+            "outcome": "out_of_scope",
+            "phase": "static",
+            "reason_code": "binary_content",
+            "message": "Binary content is unsupported by this analyzer.",
+            "path": "assets/readme/community-qr.png",
+            "start_line": null,
+            "end_line": null,
+            "fatal": false,
+            "analyzers": [
+              "static_patterns_agent_snooping",
+              "static_patterns_anti_refusal",
+              "static_patterns_data_exfiltration",
+              "static_patterns_deserialization",
+              "static_patterns_excessive_agency",
+              "static_patterns_harmful_content",
+              "static_patterns_memory_poisoning",
+              "static_patterns_output_handling",
+              "static_patterns_privilege_escalation",
+              "static_patterns_prompt_injection",
+              "static_patterns_rogue_agent",
+              "static_patterns_ssrf",
+              "static_patterns_supply_chain",
+              "static_patterns_system_prompt_leakage",
+              "static_patterns_tool_misuse"
+            ]
+          }
+        ],
+        "analyzer_statuses": [
+          {
+            "analyzer_id": "artifact_integrity",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 20,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "behavioral_ast",
+            "status": "not_applicable",
+            "planned_work": 0,
+            "completed": 0,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0,
+            "reason_code": "no_applicable_files",
+            "message": "No files matched this analyzer's applicability contract."
+          },
+          {
+            "analyzer_id": "behavioral_taint_tracking",
+            "status": "not_applicable",
+            "planned_work": 0,
+            "completed": 0,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0,
+            "reason_code": "no_applicable_files",
+            "message": "No files matched this analyzer's applicability contract."
+          },
+          {
+            "analyzer_id": "bundled_execution_surface",
+            "status": "not_applicable",
+            "planned_work": 0,
+            "completed": 0,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0,
+            "reason_code": "no_applicable_files",
+            "message": "No files matched this analyzer's applicability contract."
+          },
+          {
+            "analyzer_id": "mcp_least_privilege",
+            "status": "completed",
+            "planned_work": 2,
+            "completed": 2,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "mcp_rug_pull",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 20,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "mcp_tool_poisoning",
+            "status": "completed",
+            "planned_work": 2,
+            "completed": 2,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "meta_analyzer",
+            "status": "completed",
+            "planned_work": 15,
+            "completed": 15,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "semantic_developer_intent",
+            "status": "completed",
+            "planned_work": 19,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "semantic_quality_policy",
+            "status": "completed",
+            "planned_work": 19,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "semantic_security_discovery",
+            "status": "completed",
+            "planned_work": 19,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_agent_snooping",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_anti_refusal",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_data_exfiltration",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_deserialization",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_excessive_agency",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_harmful_content",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_memory_poisoning",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_output_handling",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_privilege_escalation",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_prompt_injection",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_rogue_agent",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_ssrf",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_supply_chain",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_system_prompt_leakage",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 19,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_patterns_tool_misuse",
+            "status": "degraded",
+            "planned_work": 20,
+            "completed": 18,
+            "partial": 1,
+            "skipped": 0,
+            "failed": 1,
+            "unaccounted": 0
+          },
+          {
+            "analyzer_id": "static_yara",
+            "status": "completed",
+            "planned_work": 20,
+            "completed": 20,
+            "partial": 0,
+            "skipped": 0,
+            "failed": 0,
+            "unaccounted": 0
+          }
+        ],
+        "references": [
+          {
+            "source_path": "SKILL.md",
+            "line": 5,
+            "column": 29,
+            "evidence": "search visibility, fixing rankings/traffic drops, optimizing pages for Google",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 6,
+            "column": 4,
+            "evidence": "(Baidu/Bing) and AI search (ChatGPT/Perplexity/AI Overviews). Subcommands:",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 6,
+            "column": 31,
+            "evidence": "(Baidu/Bing) and AI search (ChatGPT/Perplexity/AI Overviews). Subcommands:",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 7,
+            "column": 50,
+            "evidence": "audit (full-site), page (single URL), content (quality/E-E-A-T), schema",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 43,
+            "column": 35,
+            "evidence": "| 全站体检 / 流量下降 / 排名消失 | `audit` | `references/technical-seo.md` |",
+            "target_path": "references/technical-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 44,
+            "column": 22,
+            "evidence": "| 单页深度分析 | `page` | `references/on-page.md` |",
+            "target_path": "references/on-page.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 45,
+            "column": 36,
+            "evidence": "| 内容质量 / 不被收录 / 关键词 | `content` | `references/content-quality.md` |",
+            "target_path": "references/content-quality.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 46,
+            "column": 31,
+            "evidence": "| 结构化数据 / 富媒体摘要 | `schema` | `references/schema.md` |",
+            "target_path": "references/schema.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 47,
+            "column": 36,
+            "evidence": "| 被 AI 搜索引用 / AEO / GEO | `geo` | `references/ai-seo.md` |",
+            "target_path": "references/ai-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 58,
+            "column": 18,
+            "evidence": "- 明确主域名与备用形式：裸域（`example.com`）、www（`www.example.com`）、http/https 四种组合哪个是 canonical 版本",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 58,
+            "column": 37,
+            "evidence": "- 明确主域名与备用形式：裸域（`example.com`）、www（`www.example.com`）、http/https 四种组合哪个是 canonical 版本",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 58,
+            "column": 55,
+            "evidence": "- 明确主域名与备用形式：裸域（`example.com`）、www（`www.example.com`）、http/https 四种组合哪个是 canonical 版本",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 59,
+            "column": 40,
+            "evidence": "- 抓取工具：优先浏览器渲染（能拿到 JS 注入的 schema）；静态抓取（curl/web_fetch）只用于 robots/sitemap/响应头探测",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 60,
+            "column": 6,
+            "evidence": "- 读 `references/technical-seo.md` 获取完整检查清单与反模式",
+            "target_path": "references/technical-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 65,
+            "column": 172,
+            "evidence": "ontent-type 与首字符，见 references）；是否意外屏蔽重要页面（`Disallow: /` 误用）；是否引用 sitemap；AI bot（GPTBot/PerplexityBot/ClaudeBot/Google-Extended/Bingbot）是否被误屏蔽",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 66,
+            "column": 95,
+            "evidence": "- **XML sitemap**：`/sitemap.xml` 或 robots 中声明的位置是否真实存在（同上 fallback 反坑）；只含 canonical 可索引 URL；无 4xx/5xx 死链；已提交站长平台",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 67,
+            "column": 38,
+            "evidence": "- **canonical 一致性**：每页有自引用 canonical；http/https、www/裸域、尾斜杠只保留一个版本并 301 归一",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 68,
+            "column": 70,
+            "evidence": "- **http → https 301**：`curl -I http://域名` 应返回 301 到 https（⚠️ 反坑：很多站 http/https 都 200 并存 → 重复内容权重分散）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 69,
+            "column": 42,
+            "evidence": "- **裸域/子域可访问性**：裸域 DNS 有 A 记录且能访问（⚠️ 实测坑：dtsola.com/landoo.me 裸域无 A 记录，只有 www 可访问 → 外链全失效）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 73,
+            "column": 43,
+            "evidence": "判定标准：以上任一不满足 → 🔴（robots 屏蔽重要页/无 sitemap/无 canonical/http-https 并存/裸域不可达）或 🟠（sitemap 含死链/架构深）。",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 74,
+            "column": 9,
+            "evidence": "修复方法：见 `references/technical-seo.md` 对应条目（含 Next.js/Halo/静态站三种落地姿势）。",
+            "target_path": "references/technical-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 85,
+            "column": 16,
+            "evidence": "修复方法 + 验证方式：见 `references/technical-seo.md`。",
+            "target_path": "references/technical-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 89,
+            "column": 3,
+            "evidence": "- title/meta description/H1 唯一性与规范（🟠 常见：首页 12 个 H1、无 H1、title 过简无描述）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 89,
+            "column": 14,
+            "evidence": "- title/meta description/H1 唯一性与规范（🟠 常见：首页 12 个 H1、无 H1、title 过简无描述）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 98,
+            "column": 12,
+            "evidence": "服务多语言的站点按 `references/technical-seo.md` 第 2.5 节执行 hreflang/多语言 canonical/sitemap 全套检查。单语站跳过此节。",
+            "target_path": "references/technical-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 98,
+            "column": 64,
+            "evidence": "服务多语言的站点按 `references/technical-seo.md` 第 2.5 节执行 hreflang/多语言 canonical/sitemap 全套检查。单语站跳过此节。",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 100,
+            "column": 27,
+            "evidence": "**audit 输出模板**：每条问题按五要素 = Issue/Impact/Evidence/Fix/Verify 组织（模板见 `references/technical-seo.md`），按 🔴🟠🟡 分组，文末列「做得好」项与待人工实测项（CWV 需浏览器）。",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 100,
+            "column": 68,
+            "evidence": "**audit 输出模板**：每条问题按五要素 = Issue/Impact/Evidence/Fix/Verify 组织（模板见 `references/technical-seo.md`），按 🔴🟠🟡 分组，文末列「做得好」项与待人工实测项（CWV 需浏览器）。",
+            "target_path": "references/technical-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 108,
+            "column": 19,
+            "evidence": "3. 逐项检查并对照判定标准（读 `references/on-page.md`）：",
+            "target_path": "references/on-page.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 116,
+            "column": 32,
+            "evidence": "4. 输出：问题清单（分级）+ 重写建议——给出可直接替换的 title/description 文案、H1 收敛方案、alt 补写",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 122,
+            "column": 4,
+            "evidence": "读 `references/content-quality.md` 后执行：",
+            "target_path": "references/content-quality.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 137,
+            "column": 4,
+            "evidence": "读 `references/schema.md`（含完整 JSON-LD 模板）后执行：",
+            "target_path": "references/schema.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 140,
+            "column": 10,
+            "evidence": "- **不要只用 web_fetch/curl 判断\"无 schema\"**——多数 CMS/框架在客户端 JS 注入 JSON-LD，静态抓取会漏报",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 141,
+            "column": 58,
+            "evidence": "- 正确做法：浏览器渲染后执行 `document.querySelectorAll('script[type=\"application/ld+json\"]')`，逐个 `JSON.parse` 并检查 @type",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 141,
+            "column": 87,
+            "evidence": "- 正确做法：浏览器渲染后执行 `document.querySelectorAll('script[type=\"application/ld+json\"]')`，逐个 `JSON.parse` 并检查 @type",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 144,
+            "column": 14,
+            "evidence": "### 常用类型（模板见 references/schema.md）",
+            "target_path": "references/schema.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 145,
+            "column": 44,
+            "evidence": "Organization、WebSite（含 SearchAction 站内搜索框）、Article/BlogPosting、FAQPage、Product+Offer、BreadcrumbList、HowTo、Person",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 148,
+            "column": 47,
+            "evidence": "- 给出 JSON-LD 代码 + 插入位置说明（Next.js: `public/` 或 next/script；Halo: 主题模板/插件；静态站: 各页 <head> 或构建注入）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 150,
+            "column": 28,
+            "evidence": "- 注意：schema 必须反映页面真实内容（放假的 Product/Review 违反 Google 政策会处罚）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 154,
+            "column": 16,
+            "evidence": "## geo：AI 搜索优化（AEO/GEO）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 156,
+            "column": 4,
+            "evidence": "读 `references/ai-seo.md` 后执行。",
+            "target_path": "references/ai-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 160,
+            "column": 22,
+            "evidence": "- **非 Google AI 引擎**（ChatGPT/Perplexity/Claude/Copilot）：奖励**可抽取结构**——独立成块的答案段落（40-60 词）、FAQ、对比表、定义块；支持解析 `llms.txt`；第三方引用权重大（被维基/评测站/社区提及比自说自话有效）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 160,
+            "column": 107,
+            "evidence": "- **非 Google AI 引擎**（ChatGPT/Perplexity/Claude/Copilot）：奖励**可抽取结构**——独立成块的答案段落（40-60 词）、FAQ、对比表、定义块；支持解析 `llms.txt`；第三方引用权重大（被维基/评测站/社区提及比自说自话有效）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 163,
+            "column": 29,
+            "evidence": "- [ ] robots.txt 未屏蔽 AI bot（GPTBot/PerplexityBot/ClaudeBot/Google-Extended/Bingbot 显式放行或至少不屏蔽；完整名单与 CCBot 折中见 references/ai-seo.md）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 163,
+            "column": 111,
+            "evidence": "- [ ] robots.txt 未屏蔽 AI bot（GPTBot/PerplexityBot/ClaudeBot/Google-Extended/Bingbot 显式放行或至少不屏蔽；完整名单与 CCBot 折中见 references/ai-seo.md）",
+            "target_path": "references/ai-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 168,
+            "column": 11,
+            "evidence": "- [ ] 提供 `llms.txt`（站根目录；⚠️ 注意静态站 fallback 反坑，需真实文件）",
+            "target_path": null,
+            "status": "missing",
+            "disposition": "partial"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 169,
+            "column": 50,
+            "evidence": "- [ ] 提供 `/pricing.md`（如卖产品/服务：AI 采购代理可读的结构化定价，见 references/ai-seo.md）",
+            "target_path": "references/ai-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 174,
+            "column": 23,
+            "evidence": "- 生成 llms.txt 内容（模板见 `references/ai-seo.md`；三站示例见 `assets/examples/`）",
+            "target_path": "references/ai-seo.md",
+            "status": "resolved",
+            "disposition": "analyzed"
+          },
+          {
+            "source_path": "SKILL.md",
+            "line": 175,
+            "column": 37,
+            "evidence": "- 修改 robots.txt 显式声明 AI bot 策略（模板见 `assets/examples/robots.txt.template`）",
+            "target_path": "assets/examples/robots.txt.template",
+            "status": "resolved",
+            "disposition": "analyzed"
+          }
+        ],
+        "limitations": [
+          "Analyzer static_patterns_tool_misuse status: degraded."
+        ],
+        "findings_before_filtering": 22,
+        "findings_after_filtering": 22
+      }
+    }
+  }
+}

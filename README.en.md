@@ -62,16 +62,36 @@ cp xiaoyaoclaw-seo-skill/AGENTS.md ./             # read by Codex/Cursor etc.
 
 > The skill targets **websites / coding tools** (Agent Skills open standard) — no need to install into OpenClaw's skills directory.
 
+> 🔒 **No persistence**: the skill installs nothing that stays resident — no cron jobs, no daemons, no startup scripts, no cross-session state files. Copying `AGENTS.md` / `CLAUDE.md` above is a **manual, one-off** action that puts static docs in *your* repo (delete the files to undo it); it is not an automatic persistence mechanism.
+
 ## Usage
 
 1. Put the skill in your website repo (or tool skill dir)
-2. Tell your AI tool: "**audit this site's SEO**", "**optimize this article's keywords**", "**why isn't my page cited by AI?**" — the skill picks the workflow:
+2. Tell your AI tool: "**audit dtsola.com's SEO**", "**optimize this article's keywords**", "**why isn't my page cited by AI?**" — the skill picks the workflow:
    - `audit` — full-site check (crawlability / indexing / CWV / on-page / E-E-A-T)
    - `page` — deep analysis of one URL
    - `content` — content quality & keyword plan
    - `schema` — structured data detect / generate
    - `geo` — AI search visibility (llms.txt / AI bots / pricing.md)
-3. Get a graded issue list with fixes + verification; implement after your confirmation
+3. Get a graded issue list with fixes + verification; changes happen **only after your confirmation**
+
+**When it activates / when it does not** (avoids accidental invocation):
+
+- ✅ Activates: a named site/URL/page plus an SEO action (full-site audit, traffic or ranking diagnosis, optimizing a specific page, fixing robots.txt / sitemap / canonical / JSON-LD in the user's own repo)
+- ❌ Does not activate: general concept questions ("what is SEO?", "how do backlinks work"), copywriting or marketing requests, keyword lists with no site/page given, or any message where SEO is mentioned only in passing — answer those normally
+
+**Language**: the checklists are content specs, not a language mandate — the skill answers in the user's language (English request → English report).
+
+## ⚠️ Change-safety rules for production sites
+
+SEO edits affect crawling and indexation directly, and a wrong edit is worse than none (a site-wide `Disallow: /`, a misdirected canonical, or a backwards 301 can drop a whole site out of the index):
+
+1. **Diagnose first, edit later** — produce the issue list + impact analysis, and wait for your confirmation before touching files; never bundle "while I'm here" edits
+2. **High-risk targets need explicit confirmation + backup**: `robots.txt`, `sitemap.xml`, 301/rewrite rules, `canonical`, `hreflang`, `noindex`, DNS records, framework routing config (Next.js / Halo theme / Nginx·CDN)
+3. **Always reversible**: commit to git, or keep a `.bak`; record the previous DNS/server config values
+4. **Verify before production**: run status-code checks + a fetch confirmation + Rich Results Test on staging/local first; confirm no redirect loops and no new 404s
+5. **No bulk automation**: never mass-rewrite site-wide titles/descriptions or mass-generate AI pages (scaled content abuse deindexes sites)
+6. **Report four things**: what changed / why / how it was verified / how to roll back
 
 ## 🚀 Quick Start (3 steps)
 
@@ -129,7 +149,7 @@ Every issue ships with a fix (per stack: Next.js / Halo / static site) and a ver
 | Systematic spec | ❌ scattered | ✅ complete | ✅ complete | ✅ complete |
 | Runtime deps | — | light | ⚠️ Python/Chromium heavy | ✅ zero-dep (Node 18+) |
 | On-demand loading | — | references | sub-skills | ✅ references/ progressive |
-| Chinese support | — | EN only | EN only | ✅ Chinese-first (EN terms kept) |
+| Language | — | EN only | EN only | ✅ bilingual docs; answers in the user's language (Chinese examples included) |
 | Real-world pitfalls | — | some | some | ✅ incl. measured pitfalls (HTML fallback / schema static miss) |
 | Cross-tool | — | Claude family | Claude family | ✅ Agent Skills standard |
 | AI search optimization | — | separate ai-seo skill | yes | ✅ built-in geo (incl. pricing.md) |

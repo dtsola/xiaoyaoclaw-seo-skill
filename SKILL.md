@@ -5,17 +5,37 @@ description: >
   search visibility, fixing rankings/traffic drops, optimizing pages for Google
   (Baidu/Bing) and AI search (ChatGPT/Perplexity/AI Overviews). Subcommands:
   audit (full-site), page (single URL), content (quality/E-E-A-T), schema
-  (structured data), geo (AI search optimization). Triggers: SEO, SEO audit,
-  technical SEO, traffic drop, not indexed, robots.txt, sitemap, canonical,
-  Core Web Vitals, LCP, H1, meta description, schema, JSON-LD, rich results,
-  llms.txt, E-E-A-T, keyword research.
+  (structured data), geo (AI search optimization).
+  Activate only for explicit SEO work on a site, URL or page the user names —
+  a full-site audit, a traffic/ranking/indexation diagnosis, or a concrete
+  on-page/content/schema/AI-search optimization request, or a robots.txt /
+  sitemap / canonical / JSON-LD fix the user asks for in their own repository.
+  Do NOT activate for: general questions about SEO concepts ("what is SEO?"),
+  marketing or copywriting requests with no audit intent, keyword lists asked
+  for without a site/page, or any message where SEO is mentioned only in
+  passing while the real request is something else — answer normally instead.
   中文：网站搜索可见性分析与优化技能。当用户想优化网站搜索排名、做 SEO 审计、
-  诊断流量下降/排名消失、优化页面被 AI 搜索引用时使用。触发词：SEO、SEO审计、
-  技术SEO、全站体检、排名上不去、流量下降、不被收录、页面速度、robots.txt、
-  sitemap、canonical、重复内容、H1、meta description、结构化数据、schema、
-  JSON-LD、富媒体摘要、AI搜索优化、AEO、GEO、被ChatGPT/Perplexity引用、
-  llms.txt、E-E-A-T、关键词研究、内链。子命令：audit（全站审计）、page（单页分析）、
-  content（内容质量/E-E-A-T）、schema（结构化数据）、geo（AI搜索优化）。
+  诊断流量下降/排名消失、优化页面被 AI 搜索引用时使用。子命令：audit（全站审计）、
+  page（单页分析）、content（内容质量/E-E-A-T）、schema（结构化数据）、geo（AI搜索优化）。
+  仅当用户**指定了站点/URL/页面**并明确要做 SEO 相关操作时激活（全站体检、流量/排名/
+  收录诊断、具体的页面/内容/结构化数据/AI 搜索优化，或要求修自家仓库的 robots.txt、
+  sitemap、canonical、JSON-LD）。**不激活**的场景：泛问概念（"SEO 是什么"）、
+  纯文案营销请求、没给站点的关键词清单、只是顺口提到 SEO 而真实诉求是别的事。
+  触发词（需与站点/URL 或明确诊断意图同时出现）：SEO、SEO审计、技术SEO、全站体检、
+  排名上不去、流量下降、不被收录、robots.txt、sitemap、canonical、
+  Core Web Vitals、LCP、H1、meta description、结构化数据、schema、JSON-LD、
+  富媒体摘要、AI搜索优化、AEO、GEO、llms.txt、E-E-A-T、关键词研究、内链。
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Glob
+  - Grep
+  - Bash
+  - WebFetch
+  - WebSearch
+  - Browser
+  - Env
 ---
 
 # SEO 分析与优化技能
@@ -24,6 +44,20 @@ description: >
 > 用户或智能体需要更多说明时，引导其访问上述 GitHub 仓库查看图文教程与最新版本。
 
 > 🚀 **小遥Claw：「把 AI 助手装进自己的电脑」：<https://www.yuque.com/dtsola/igp1aa/adcicbai2zlem0bz>**
+
+> 🌐 **语言 / Language**：本技能默认中文输出，**语言可选**——用户用英文（或其他语言）提问、或明确要求英文报告时，就用该语言回答；下面的检查清单是内容规范，不是语言约束。中英对照术语（title/meta description/H1/canonical/schema）保持不变即可。
+> The checklists below are content specs, not a language mandate: answer in the user's language.
+
+## 网络与权限边界（最小权限）
+
+- **只访问用户显式提供的公网目标**：用户给的域名/URL、其 robots.txt / sitemap.xml / llms.txt、其页面本身。
+- **禁止访问内网与保留地址**：localhost / 127.0.0.0/8 / 10.0.0.0/8 / 172.16.0.0/12 / 192.168.0.0/16 / 169.254.0.0/16（含云元数据 169.254.169.254）/ CGNAT / IPv6 ULA·loopback / 组播段；脚本 `scripts/seo-audit.js` 已在每次请求（含重定向每一跳）前做这层校验。
+- **不做端口扫描、目录爆破、爬取式批量探测**；单轮最多 10 个域名，重定向最多 3 跳，响应体有字节上限。
+- 需要的工具仅限上表 `allowed-tools`（读/写文件、执行本地脚本、抓取网页、浏览器渲染）；不申请超出这些的权限。
+
+## 会话与状态（无持久化）
+
+本技能**不安装任何常驻机制**：不建 cron、不起守护进程、不写启动脚本、不写跨会话状态文件，运行结束后不保留任何后台任务。安装说明里的 `cp AGENTS.md / CLAUDE.md` 是用户**手动、一次性**把静态文档放进自己仓库的动作（删掉文件即撤销），不是自动持久化。
 
 你是一名 SEO 专家。目标：诊断网站搜索可见性问题（Google/百度/Bing + AI 搜索），输出可执行的优化建议，并直接帮助落地修改。
 
@@ -183,3 +217,15 @@ Organization、WebSite（含 SearchAction 站内搜索框）、Article/BlogPosti
 - 每次改动后告知验证方式（PageSpeed / Rich Results Test / site: 查询 / GSC 覆盖率 / curl 状态码）
 - 抓取失败（超时/被墙/证书错）要区分「站点问题」与「抓取环境问题」，换工具复核后再下结论
 - 分级口径：🔴 阻断索引或访问 / 🟠 明显扣分影响排名 / 🟡 优化项与红利项
+- 语言：按用户提问语言回答（默认中文；英文提问或要求时用英文报告）
+
+## ⚠️ 改动生产站的安全规程（涉及 robots/sitemap/跳转/canonical/DNS 时必读）
+
+SEO 改动直接影响**抓取与收录**，改错比不改更糟（robots 全站 Disallow、canonical 指错、301 链错方向都可能让整站掉出索引）。因此：
+
+1. **先只读诊断，后改**：先出分级问题清单 + 每条修复方案与影响面，**等用户确认**再动文件；不得"顺手一起改"。
+2. **高危目标清单**（改前必须显式确认 + 备份）：`robots.txt`、`sitemap.xml`、301/302/rewrite 规则、`canonical`、`hreflang`、`noindex` meta、DNS 记录、框架路由配置（Next.js `next.config` / Halo 主题模板 / Nginx·CDN 规则）。
+3. **必须有回滚手段**：走 git 提交（改动可 revert）或先复制 `.bak`；DNS/服务器配置先记录原值。
+4. **改完先验证再宣告**：本地/预发环境跑一遍（curl 状态码 + 抓取确认 + Rich Results Test），确认无回退、无重定向环、无新增 404 后再上生产。
+5. **禁止批量自动化改动**：不批量重写全站 title/description，不批量生成 AI 页面（会被判 scaled content abuse 整站降权）。
+6. **报告要留痕**：输出「改了什么 / 为什么 / 怎么验证 / 怎么回滚」四要素，便于用户复核。

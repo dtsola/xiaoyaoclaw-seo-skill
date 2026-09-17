@@ -3,6 +3,9 @@
 > 按「检查清单 → 判定标准 → 修复方法 → 验证方式」组织。核心原则：**people-first**（Google 官方：为读者写，不为搜索引擎/AI 写）。
 > 要点提炼自 marketingskills `seo-audit` v2.0.1（2026-09 对照原文核查）。
 
+> 🌐 语言 / Language：本清单是**内容规范**而非语言约束；默认中文，用户用英文或其他语言提问时就用该语言输出（答案语言跟随用户）。
+> This checklist is a content spec, not a language mandate — answer in the user's language.
+
 ## 0. 为什么内容不被收录/排名上不去（先定位）
 
 | 现象 | 常见根因 | 排查方向 |

@@ -2,6 +2,11 @@
 
 本仓库包含一个 **SEO 分析与优化技能**（Agent Skills 开放标准格式），供各类 AI 编码代理使用。
 
+> 🌐 **语言 / Language**：文档与默认输出为中文，**语言可选**——用户用英文（或其他语言）提问时用该语言回答；英文说明见 `README.en.md`。文档语言不构成使用约束。
+> Docs default to Chinese; **language is optional** — reply in the user's language. English docs: `README.en.md`.
+
+> 🔒 **无持久化**：本技能不建 cron、不起守护进程、不写启动脚本、不写跨会话状态文件；把本文件复制进你的仓库是你手动的一次性动作（删文件即撤销）。
+
 ## 适用工具
 
 - **Claude Code**：读 CLAUDE.md（内容指向本文件）

@@ -1,6 +1,10 @@
 # robots.txt 通用模板（AI bot 显式放行版）
-# 用法：替换 <canonical-host> 为站点规范域名，放到站点根目录
-# 注意：静态托管/SPA 需确认部署平台不把 robots.txt rewrite 到 404/HTML 页
+# General robots.txt template (explicit AI-bot allow-list)
+# 用法 / Usage：替换 <canonical-host> 为站点规范域名后放到站点根目录
+#   Replace <canonical-host> with your canonical domain and place at the site root.
+# 注意 / Note：静态托管/SPA 需确认部署平台不把 robots.txt rewrite 到 404/HTML 页
+#   On static hosting/SPAs, make sure the platform does not rewrite robots.txt to a 404/HTML page.
+# 注释语言可按团队习惯改为英文或其他语言 / Comments may be written in any language.
 
 User-agent: *
 Allow: /

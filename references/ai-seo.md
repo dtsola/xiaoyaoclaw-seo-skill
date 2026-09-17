@@ -5,6 +5,9 @@
 > 品牌经第三方来源被引用的概率是自有域名的 **6.5 倍**（2026 最值得吃的流量红利）。
 > 要点提炼自 marketingskills `ai-seo` v2.4.0（2026-09 对照原文核查）。
 
+> 🌐 语言 / Language：本清单是**内容规范**而非语言约束；默认中文，用户用英文或其他语言提问时就用该语言输出（答案语言跟随用户）。
+> This checklist is a content spec, not a language mandate — answer in the user's language.
+
 ## 1. AI 搜索工作原理（平台差异）
 
 | 平台 | 工作方式 | 选源倾向 |

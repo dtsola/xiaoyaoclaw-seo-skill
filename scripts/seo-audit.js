@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * seo-audit.js — 轻量技术 SEO 快检脚本（零依赖，Node 18+，仅用内置 fetch/dns）
+ * seo-audit.js — 轻量技术 SEO 快检脚本（零依赖，Node 18+，仅用内置 fetch/dns/net）
  *
  * 用法：
  *   node seo-audit.js <domain> [more-domains...]
@@ -16,46 +16,209 @@
  * 输出：按 🔴🟠🟡 分级的控制台报告。注意：schema 检测是静态的，
  *   JS 注入的 JSON-LD 检测不到 —— 需浏览器渲染复核（见 references/schema.md）。
  *
+ * 语言 / Language：本脚本的用法说明与输出默认中文，可改为英文或其他语言
+ *   （output language is your choice, not a constraint）。文案都在下方字符串里，
+ *   按需替换即可。
+ *
+ * 网络与安全边界（本脚本只读，不写入任何站点或本地状态）：
+ *   - 只访问命令行显式给出的目标主机，且必须是 **公网** 地址：
+ *     解析结果命中回环 / 私有网段 / 链路本地（含云元数据 169.254.169.254）/
+ *     CGNAT / 保留段 / IPv6 ULA 时直接拒绝，不做任何请求。
+ *   - 重定向不自动跟随（`redirect: 'manual'`），每一跳都重新做上面这层校验，
+ *     最多 3 跳 —— 防止公网站点把请求重定向到内网地址。
+ *   - 响应体有字节上限（HTML 1 MB / 文本 256 KB），超限即中止读取，
+ *     避免恶意大响应把进程内存吃满。
+ *   - 从远端内容里取出的任何字符串（title / description / canonical / lang /
+ *     JSON-LD 类型 / 跳转目标…）在打印前都会剥掉控制字符与 ANSI/OSC 转义序列
+ *     （终端注入防护），并截断长度。
+ *   - 单次运行最多 10 个域名，防止批量探测拖垮本机。
+ *
  * 退出码：0 = 正常完成（无论发现多少问题）；非 0 = 脚本自身错误。
  */
 'use strict';
 
 const dns = require('node:dns').promises;
+const net = require('node:net');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const timeout = (ms) => new Promise((r) => setTimeout(r, ms));
 
-async function probe(url) {
+// ---- 限额（安全边界，见文件头说明） --------------------------------------
+const MAX_DOMAINS = 10;
+const MAX_BYTES_HTML = 1024 * 1024;      // 1 MB
+const MAX_BYTES_TEXT = 256 * 1024;       // 256 KB
+const MAX_REDIRECTS = 3;
+const REQUEST_TIMEOUT_MS = 10000;
+
+/** 终端安全化：剥掉 ANSI/OSC 转义与控制字符，压缩空白，截断长度。
+ *  远端页面可以把 title / meta 写成带转义序列的内容，直接打印会伪装审计输出。 */
+function safe(value, max = 200) {
+  if (value === null || value === undefined) return '';
+  let s = String(value);
+  s = s
+    .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, '')   // OSC ... BEL/ST
+    .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, '')                   // CSI ... final
+    .replace(/[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g, ' ')    // C0/C1（保留 \t \n）
+    .replace(/[ \t]+/g, ' ')
+    .trim();
+  if (s.length > max) s = s.slice(0, max) + '…';
+  return s;
+}
+
+/** 该 IP 是否属于内网 / 保留 / 元数据段 —— 命中即拒绝访问。 */
+function isBlockedIp(ip) {
+  const version = net.isIP(ip);
+  if (version === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 0 || a === 10 || a === 127) return true;              // 本网络/私有/回环
+    if (a === 169 && b === 254) return true;                        // 链路本地 + 云元数据
+    if (a === 172 && b >= 16 && b <= 31) return true;               // 私有
+    if (a === 192 && b === 168) return true;                        // 私有
+    if (a === 100 && b >= 64 && b <= 127) return true;              // CGNAT
+    if (a === 192 && b === 0) return true;                          // 保留/测试
+    if (a === 198 && (b === 18 || b === 19)) return true;           // 基准测试
+    if (a >= 224) return true;                                      // 组播 + 保留
+    return false;
+  }
+  if (version === 6) {
+    const v = ip.toLowerCase();
+    if (v === '::' || v === '::1') return true;                     // 未指定 / 回环
+    if (v.startsWith('::ffff:')) return isBlockedIp(v.slice(7));    // IPv4 映射
+    if (v.startsWith('fe80')) return true;                          // 链路本地
+    if (v.startsWith('fc') || v.startsWith('fd')) return true;      // ULA
+    if (v.startsWith('ff')) return true;                            // 组播
+    return false;
+  }
+  return true; // 非 IP：此处按"拒绝"处理，域名由 assertPublicTarget 解析后再判
+}
+
+/** 目标校验：仅 http/https、无凭据、解析结果必须全部是公网地址。 */
+async function assertPublicTarget(urlStr) {
+  let url;
+  try {
+    url = new URL(urlStr);
+  } catch {
+    throw new Error(`非法 URL：${urlStr}`);
+  }
+  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+    throw new Error(`仅允许 http/https：${url.protocol}`);
+  }
+  if (url.username || url.password) throw new Error('URL 不得内嵌凭据');
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (net.isIP(host)) {
+    if (isBlockedIp(host)) throw new Error(`目标为内网/保留地址，已拒绝：${host}`);
+    return url;
+  }
+  let addrs;
+  try {
+    addrs = await dns.lookup(host, { all: true });
+  } catch (e) {
+    throw new Error(`DNS 解析失败：${host}`);
+  }
+  const blocked = addrs.filter((a) => isBlockedIp(a.address));
+  if (blocked.length) {
+    throw new Error(`目标解析到内网/保留地址，已拒绝：${host} -> ${blocked.map((a) => a.address).join(', ')}`);
+  }
+  return url;
+}
+
+/** 带体积上限的读取：流式累计，超限即中止（防止恶意大响应耗尽内存）。 */
+async function readTextLimited(res, maxBytes) {
+  const declared = Number(res.headers.get('content-length') || '0');
+  if (declared && declared > maxBytes) {
+    return { text: null, error: `响应体声明 ${declared} 字节，超过上限 ${maxBytes}` };
+  }
+  if (!res.body || typeof res.body.getReader !== 'function') {
+    const text = await res.text();
+    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
+      return { text: null, error: `响应体超过上限 ${maxBytes} 字节` };
+    }
+    return { text, error: null };
+  }
+  const reader = res.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => {});
+      return { text: null, error: `响应体超过上限 ${maxBytes} 字节，已中止读取` };
+    }
+    chunks.push(Buffer.from(value));
+  }
+  return { text: Buffer.concat(chunks).toString('utf8'), error: null };
+}
+
+/** 只探响应头（不读 body）：手动重定向，用来判 301/308 与 location。 */
+async function probe(urlStr) {
+  let url;
+  try {
+    url = await assertPublicTarget(urlStr);
+  } catch (e) {
+    return { url: urlStr, error: e.message };
+  }
   try {
     const res = await fetch(url, {
       redirect: 'manual',
       headers: { 'user-agent': UA },
-      signal: AbortSignal.timeout(10000),
+      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
     });
+    if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(() => {});
     return {
-      url,
+      url: urlStr,
       status: res.status,
       location: res.headers.get('location') || null,
       ct: (res.headers.get('content-type') || '').slice(0, 60),
     };
   } catch (e) {
-    return { url, error: e.message };
+    return { url: urlStr, error: safe(e.message, 120) };
   }
 }
 
-async function getText(url) {
-  try {
-    const res = await fetch(url, {
-      redirect: 'follow',
-      headers: { 'user-agent': UA },
-      signal: AbortSignal.timeout(10000),
-    });
-    if (!res.ok) return { ok: false, status: res.status, error: null, text: '', ct: '' };
-    const text = await res.text();
-    return { ok: true, status: res.status, error: null, text, ct: (res.headers.get('content-type') || '').slice(0, 60) };
-  } catch (e) {
-    return { ok: false, status: null, error: e.message, text: '', ct: '' };
+/** 取文本：手动重定向（每跳都过公网校验），带上限读取。 */
+async function getText(urlStr, { maxBytes = MAX_BYTES_TEXT } = {}) {
+  let current = urlStr;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    let url;
+    try {
+      url = await assertPublicTarget(current);
+    } catch (e) {
+      return { ok: false, status: null, error: e.message, text: '', ct: '', location: null };
+    }
+    let res;
+    try {
+      res = await fetch(url, {
+        redirect: 'manual',
+        headers: { 'user-agent': UA },
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      });
+    } catch (e) {
+      return { ok: false, status: null, error: safe(e.message, 120), text: '', ct: '', location: null };
+    }
+    const ct = (res.headers.get('content-type') || '').slice(0, 60);
+    const location = res.headers.get('location') || null;
+    if (res.status >= 300 && res.status < 400) {
+      if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(() => {});
+      if (!location) {
+        return { ok: false, status: res.status, error: null, text: '', ct, location: null };
+      }
+      if (hop === MAX_REDIRECTS) {
+        return { ok: false, status: res.status, error: `重定向超过 ${MAX_REDIRECTS} 跳，已停止`, text: '', ct, location };
+      }
+      current = new URL(location, url).toString();
+      continue;
+    }
+    if (!res.ok) {
+      if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(() => {});
+      return { ok: false, status: res.status, error: null, text: '', ct, location };
+    }
+    const { text, error } = await readTextLimited(res, maxBytes);
+    if (error) return { ok: false, status: res.status, error, text: '', ct, location };
+    return { ok: true, status: res.status, error: null, text, ct, location };
   }
+  return { ok: false, status: null, error: '重定向未收敛', text: '', ct: '', location: null };
 }
 
 function looksLikeHtml(text) {
@@ -114,7 +277,7 @@ async function checkDomain(domain) {
   try {
     const recs = await dns.resolve4(bareDomain);
     bareHasA = true;
-    console.log(`[dns] ${bareDomain} A 记录: ${recs.join(', ')}`);
+    console.log(`[dns] ${bareDomain} A 记录: ${safe(recs.join(', '), 200)}`);
     issues.yellow.push('裸域有 A 记录，但请确认裸域是否 301 到 www（版本归一）');
   } catch {
     console.log(`[dns] ${bareDomain} ❌ 无 A 记录（只有 www 可访问?）`);
@@ -126,15 +289,15 @@ async function checkDomain(domain) {
   if (httpHost !== domain) console.log(`[note] 裸域无 DNS，后续检查 fallback 到 ${httpHost}`);
   const httpProbe = await probe(`http://${httpHost}/`);
   if (httpProbe.error) {
-    console.log(`[http] http://${httpHost} ERROR ${httpProbe.error}`);
+    console.log(`[http] http://${httpHost} ERROR ${safe(httpProbe.error, 120)}`);
   } else if (httpProbe.status === 301 || httpProbe.status === 308) {
-    console.log(`[http] http://${httpHost} -> ${httpProbe.status} → ${httpProbe.location}`);
+    console.log(`[http] http://${httpHost} -> ${httpProbe.status} → ${safe(httpProbe.location, 200)}`);
     issues.yellow.push('http 已 301，确认目标是 https 规范版本');
   } else if (httpProbe.status === 200) {
     console.log(`[http] http://${httpHost} -> 200 ⚠️ http/https 并存无跳转`);
     issues.red.push('http:// 返回 200 未 301 到 https：重复内容权重分散 + 明文传输 → 服务器/CDN 配 http→https 301');
   } else {
-    console.log(`[http] http://${httpHost} -> ${httpProbe.status}${httpProbe.location ? ' → ' + httpProbe.location : ''}`);
+    console.log(`[http] http://${httpHost} -> ${httpProbe.status}${httpProbe.location ? ' → ' + safe(httpProbe.location, 200) : ''}`);
   }
 
   // 3. www/裸域 版本归一探测（仅对裸域或 www 域名有意义；多级子域如 project.example.com 跳过）
@@ -145,9 +308,9 @@ async function checkDomain(domain) {
   const other = isWwwInput ? bareDomain : `www.${bareDomain}`;
   const wwwProbe = await probe(`https://${other}/`);
   if (wwwProbe.error) {
-    console.log(`[www] https://${other} ERROR ${wwwProbe.error}`);
+    console.log(`[www] https://${other} ERROR ${safe(wwwProbe.error, 120)}`);
   } else if (wwwProbe.status === 301 || wwwProbe.status === 308) {
-    console.log(`[www] https://${other} -> ${wwwProbe.status} → ${wwwProbe.location}`);
+    console.log(`[www] https://${other} -> ${wwwProbe.status} → ${safe(wwwProbe.location, 200)}`);
   } else if (wwwProbe.status === 200) {
     // 输入版本本身可访问（200）且另一版本也 200 → 真双版本问题；输入版本不可访问时，另一版本 200 属正常 fallback
     const inputProbe = await probe(`https://${domain}/`);
@@ -167,19 +330,19 @@ async function checkDomain(domain) {
   for (const f of ['/robots.txt', '/sitemap.xml', '/llms.txt']) {
     const r = await getText(`https://${httpHost}${f}`);
     if (!r.ok) {
-      console.log(`[file] ${f} -> ${r.status || r.error}${r.status === 404 ? '（不存在）' : ''}`);
+      console.log(`[file] ${f} -> ${r.status || safe(r.error, 120)}${r.status === 404 ? '（不存在）' : ''}`);
       if (f === '/robots.txt' && r.status === 404) issues.orange.push('robots.txt 404：无法控制抓取与 AI bot 策略 → 补真实 robots.txt');
       if (f === '/sitemap.xml' && r.status === 404) issues.red.push('sitemap.xml 404：收录全靠爬虫自己发现，新页收录慢 → 生成真实 sitemap 并提交站长平台');
     } else {
       const isHtml = looksLikeHtml(r.text);
       const isPlain = r.ct.includes('text/plain') || r.ct.includes('application/xml') || r.ct.includes('text/xml');
       if (isHtml || (!isPlain && f !== '/robots.txt' && f !== '/sitemap.xml')) {
-        console.log(`[file] ${f} -> 200 ct=${r.ct} ⚠️ HTML fallback（非真实文件）`);
+        console.log(`[file] ${f} -> 200 ct=${safe(r.ct, 60)} ⚠️ HTML fallback（非真实文件）`);
         if (f === '/robots.txt') issues.orange.push('robots.txt 返回 HTML fallback（文件不存在）：无法控制抓取 → 站点根放真实文本文件');
         if (f === '/sitemap.xml') issues.red.push('sitemap.xml 返回 HTML fallback（文件不存在）→ 生成真实 XML sitemap');
         if (f === '/llms.txt') issues.yellow.push('llms.txt 返回 HTML fallback：AI 可读入口缺失 → 补真实 llms.txt（AI 引用红利）');
       } else {
-        console.log(`[file] ${f} -> 200 ct=${r.ct} ✅ 真实文件（${r.text.length} 字符）`);
+        console.log(`[file] ${f} -> 200 ct=${safe(r.ct, 60)} ✅ 真实文件（${r.text.length} 字符）`);
         if (f === '/robots.txt') {
           const hasSitemap = /sitemap:/i.test(r.text);
           // 全站屏蔽判定：Disallow: / 独占一行（路径仅 "/" 后跟空白/注释/行尾），排除 /console 这类子路径
@@ -198,19 +361,20 @@ async function checkDomain(domain) {
     await timeout(250);
   }
 
-  // 5. 首页关键标签
-  const home = await getText(`https://${httpHost}/`);
-  console.log(`[home] https://${httpHost}/ -> ${home.ok ? home.status + ' (' + home.text.length + ' 字符)' : home.error || home.status}`);
+  // 5. 首页关键标签（HTML 用较大的 1 MB 上限；其余远端字符串打印前一律 safe()）
+  const home = await getText(`https://${httpHost}/`, { maxBytes: MAX_BYTES_HTML });
+  console.log(`[home] https://${httpHost}/ -> ${home.ok ? home.status + ' (' + home.text.length + ' 字符)' : safe(home.error || home.status, 120)}`);
   if (home.ok && !looksLikeHtml(home.text)) {
     console.log('       ⚠️ 首页返回非 HTML（可能是 API/重定向页）');
   } else if (home.ok) {
     const m = extractMeta(home.text);
-    console.log(`       title: ${m.title || '❌ 无'}`);
-    console.log(`       meta description: ${m.metaDesc ? m.metaDesc.slice(0, 120) : '❌ 无'}`);
-    console.log(`       canonical: ${m.canonical || '❌ 无'}`);
-    console.log(`       H1: ${m.h1Count} 个${m.h1Samples.length ? ' → ' + JSON.stringify(m.h1Samples) : ''} | H2: ${m.h2Count} 个`);
-    console.log(`       JSON-LD: ${m.jsonldCount} 个${m.jsonldTypes.length ? ' → ' + m.jsonldTypes.join(',') : ''}（⚠️ 静态检测，JS 注入需浏览器复核）`);
-    console.log(`       viewport: ${m.viewport ? '✅' : '❌ 无'} | lang: ${m.lang || '❌ 无'} | robots meta: ${m.robotsMeta || '无'}`);
+    console.log(`       title: ${m.title ? safe(m.title) : '❌ 无'}`);
+    console.log(`       meta description: ${m.metaDesc ? safe(m.metaDesc, 120) : '❌ 无'}`);
+    console.log(`       canonical: ${m.canonical ? safe(m.canonical, 200) : '❌ 无'}`);
+    const h1s = m.h1Samples.map((s) => safe(s, 60));
+    console.log(`       H1: ${m.h1Count} 个${h1s.length ? ' → ' + JSON.stringify(h1s) : ''} | H2: ${m.h2Count} 个`);
+    console.log(`       JSON-LD: ${m.jsonldCount} 个${m.jsonldTypes.length ? ' → ' + m.jsonldTypes.map((t) => safe(t, 40)).join(',') : ''}（⚠️ 静态检测，JS 注入需浏览器复核）`);
+    console.log(`       viewport: ${m.viewport ? '✅' : '❌ 无'} | lang: ${m.lang ? safe(m.lang, 20) : '❌ 无'} | robots meta: ${m.robotsMeta ? safe(m.robotsMeta, 60) : '无'}`);
     if (!m.title) issues.red.push('首页无 title');
     else if (m.title.length > 70) issues.yellow.push(`首页 title 过长（${m.title.length} 字符，建议 50-60）`);
     if (!m.metaDesc) issues.orange.push('首页缺 meta description → 补 150-160 字符描述');
@@ -235,11 +399,30 @@ async function checkDomain(domain) {
 }
 
 (async () => {
-  const domains = process.argv.slice(2).map((d) => d.replace(/^https?:\/\//, '').replace(/\/.*$/, ''));
-  if (!domains.length) {
+  const rawDomains = process.argv.slice(2);
+  if (!rawDomains.length) {
     console.log('用法: node seo-audit.js <domain> [more-domains...]');
     console.log('例:   node seo-audit.js dtsola.com www.landoo.me project.xiaoyaosai.com');
     process.exit(1);
+  }
+  if (rawDomains.length > MAX_DOMAINS) {
+    console.log(`ERROR: 单次最多 ${MAX_DOMAINS} 个域名（收到 ${rawDomains.length} 个）—— 分批运行，避免批量探测拖垮本机。`);
+    process.exit(2);
+  }
+  // 输入规范化 + 白名单校验：只接受裸主机名，剔除协议/路径/端口/凭据等
+  const domains = [];
+  for (const raw of rawDomains) {
+    const cleaned = safe(raw, 253).replace(/^https?:\/\//i, '').replace(/\/.*$/, '').replace(/^[^@]*@/, '');
+    if (!/^[a-zA-Z0-9]([a-zA-Z0-9.\-]*[a-zA-Z0-9])?$/.test(cleaned)) {
+      console.log(`ERROR: 非法域名，已跳过：${safe(raw, 80)}（只接受形如 example.com 的主机名）`);
+      process.exit(2);
+    }
+    // 内网/保留字面量直接拒绝（域名会在每次请求前再解析校验一次）
+    if (net.isIP(cleaned) && isBlockedIp(cleaned)) {
+      console.log(`ERROR: ${cleaned} 属于内网/保留地址，本脚本只审计公网站点。`);
+      process.exit(2);
+    }
+    domains.push(cleaned);
   }
   for (const d of domains) {
     await checkDomain(d);

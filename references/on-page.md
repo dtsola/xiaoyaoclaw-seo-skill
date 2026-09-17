@@ -3,6 +3,9 @@
 > 按「检查清单 → 判定标准 → 修复方法 → 验证方式」组织。
 > 要点提炼自 marketingskills `seo-audit` v2.0.1（2026-09 对照原文核查）。
 
+> 🌐 语言 / Language：本清单是**内容规范**而非语言约束；默认中文，用户用英文或其他语言提问时就用该语言输出（答案语言跟随用户）。
+> This checklist is a content spec, not a language mandate — answer in the user's language.
+
 ## 0. 抓取姿势
 
 - 确认最终 URL：先探测跳转链，找到 200 的 canonical 版本再分析（分析 http 版/带参数版没意义）
