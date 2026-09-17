@@ -24,21 +24,33 @@
  *   - 只访问命令行显式给出的目标主机，且必须是 **公网** 地址：
  *     解析结果命中回环 / 私有网段 / 链路本地（含云元数据 169.254.169.254）/
  *     CGNAT / 保留段 / IPv6 ULA 时直接拒绝，不做任何请求。
- *   - 重定向不自动跟随（`redirect: 'manual'`），每一跳都重新做上面这层校验，
+ *   - **校验点在建连那一刻，不只在请求前**：预检 `assertPublicTarget()` 负责快速
+ *     失败与友好报错；真正的强制点是 `net.connect` 的 lookup 回调
+ *     （`connectGuardedLookup()`）—— 每次建立 TCP 连接都重新解析并逐个检查将要
+ *     使用的地址，命中内网段即失败。这样就没有"先校验后连接"的时间差可利用
+ *     （DNS 重绑定 TOCTOU）。
+ *   - **只允许 80/443 端口**，不做端口扫描。
+ *   - 重定向不自动跟随（`redirect: 'manual'`），每一跳都重跑上面两层校验，
  *     最多 3 跳 —— 防止公网站点把请求重定向到内网地址。
- *   - 响应体有字节上限（HTML 1 MB / 文本 256 KB），超限即中止读取，
- *     避免恶意大响应把进程内存吃满。
+ *   - 响应体有字节上限（HTML 1 MB / 文本 256 KB，按**解压后**计），
+ *     超限即中止读取，避免恶意大响应把进程内存吃满。
+ *   - 只发 GET；不带 cookie jar、不带 Authorization、不携带任何凭据，UA 固定。
  *   - 从远端内容里取出的任何字符串（title / description / canonical / lang /
  *     JSON-LD 类型 / 跳转目标…）在打印前都会剥掉控制字符与 ANSI/OSC 转义序列
  *     （终端注入防护），并截断长度。
  *   - 单次运行最多 10 个域名，防止批量探测拖垮本机。
+ *   - **明确不做**：不写文件、不改远端内容、不登录、不提交表单、不发 POST、
+ *     不探测端口、不访问非 http(s) 协议、不把抓到的内容外发到任何第三方。
  *
  * 退出码：0 = 正常完成（无论发现多少问题）；非 0 = 脚本自身错误。
  */
 'use strict';
 
 const dns = require('node:dns').promises;
+const http = require('node:http');
+const https = require('node:https');
 const net = require('node:net');
+const zlib = require('node:zlib');
 
 const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36';
 const timeout = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -49,6 +61,8 @@ const MAX_BYTES_HTML = 1024 * 1024;      // 1 MB
 const MAX_BYTES_TEXT = 256 * 1024;       // 256 KB
 const MAX_REDIRECTS = 3;
 const REQUEST_TIMEOUT_MS = 10000;
+// 只允许公网站点的标准端口，杜绝把本脚本当成端口扫描器用
+const ALLOWED_PORTS = new Set([80, 443]);
 
 /** 终端安全化：剥掉 ANSI/OSC 转义与控制字符，压缩空白，截断长度。
  *  远端页面可以把 title / meta 写成带转义序列的内容，直接打印会伪装审计输出。 */
@@ -122,101 +136,170 @@ async function assertPublicTarget(urlStr) {
   return url;
 }
 
-/** 带体积上限的读取：流式累计，超限即中止（防止恶意大响应耗尽内存）。 */
-async function readTextLimited(res, maxBytes) {
-  const declared = Number(res.headers.get('content-length') || '0');
-  if (declared && declared > maxBytes) {
-    return { text: null, error: `响应体声明 ${declared} 字节，超过上限 ${maxBytes}` };
-  }
-  if (!res.body || typeof res.body.getReader !== 'function') {
-    const text = await res.text();
-    if (Buffer.byteLength(text, 'utf8') > maxBytes) {
-      return { text: null, error: `响应体超过上限 ${maxBytes} 字节` };
-    }
-    return { text, error: null };
-  }
-  const reader = res.body.getReader();
-  const chunks = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > maxBytes) {
-      await reader.cancel().catch(() => {});
-      return { text: null, error: `响应体超过上限 ${maxBytes} 字节，已中止读取` };
-    }
-    chunks.push(Buffer.from(value));
-  }
-  return { text: Buffer.concat(chunks).toString('utf8'), error: null };
+/** 连接时地址过滤（把安全边界放到真正建立 TCP 连接的那一刻）。
+ *
+ *  `assertPublicTarget()` 是预检：提前把明显的坏目标挡掉，给出友好报错。
+ *  但它有经典 TOCTOU 缺口 —— 校验用的 DNS 结果和随后实际连接的地址可能是
+ *  两次不同的解析（DNS 重绑定）。所以真正的强制点在 net.connect 的 lookup
+ *  回调里：**每次建连都重新解析并逐个检查将要使用的地址**，命中内网/保留段
+ *  就直接让连接失败，绝不回退到"先连上再说"。
+ */
+function connectGuardedLookup() {
+  return (hostname, options, callback) => {
+    dns
+      .lookup(hostname, { all: true, verbatim: true })
+      .then((addrs) => {
+        const allowed = addrs.filter((a) => !isBlockedIp(a.address));
+        if (!allowed.length) {
+          callback(new Error(`拒绝连接：${hostname} 解析到的地址全部属于内网/保留段`));
+          return;
+        }
+        if (options && options.all) {
+          callback(null, allowed);
+          return;
+        }
+        callback(null, allowed[0].address, allowed[0].family);
+      })
+      .catch((err) => callback(err));
+  };
 }
 
-/** 只探响应头（不读 body）：手动重定向，用来判 301/308 与 location。 */
-async function probe(urlStr) {
+/** 读响应体：按 Content-Encoding 解压，流式累计并按**解压后**大小设上限。 */
+function readBodyCapped(res, maxBytes) {
+  return new Promise((resolve) => {
+    const declared = Number(res.headers['content-length'] || 0);
+    // 压缩体的声明长度只能松判（解压后才是真正的内存占用），真正的硬闸在下面的计数器
+    if (declared && declared > maxBytes * 4) {
+      res.destroy();
+      resolve({ text: null, error: `响应体声明 ${declared} 字节，超过上限 ${maxBytes}` });
+      return;
+    }
+    const encoding = String(res.headers['content-encoding'] || '').toLowerCase();
+    let stream = res;
+    if (encoding.includes('gzip')) stream = res.pipe(zlib.createGunzip());
+    else if (encoding.includes('deflate')) stream = res.pipe(zlib.createInflate());
+    else if (encoding.includes('br')) stream = res.pipe(zlib.createBrotliDecompress());
+
+    const chunks = [];
+    let total = 0;
+    let settled = false;
+    const finish = (payload) => {
+      if (settled) return;
+      settled = true;
+      resolve(payload);
+    };
+    stream.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        res.destroy();
+        stream.destroy();
+        finish({ text: null, error: `响应体超过上限 ${maxBytes} 字节，已中止读取` });
+        return;
+      }
+      chunks.push(chunk);
+    });
+    stream.on('end', () => finish({ text: Buffer.concat(chunks).toString('utf8'), error: null }));
+    stream.on('error', (e) => finish({ text: null, error: safe(e.message, 120) }));
+  });
+}
+
+/** 单次 GET：手动重定向语义（本函数不跟跳），连接时过地址过滤。
+ *
+ *  约束：只 http/https、只 80/443、无 cookie jar、无 Authorization、无代理透传、
+ *  UA 固定、超时硬上限；bodyWanted=false 时拿到响应头就断开（不下载正文）。
+ */
+async function httpGetOnce(urlStr, { maxBytes, bodyWanted }) {
   let url;
   try {
     url = await assertPublicTarget(urlStr);
   } catch (e) {
-    return { url: urlStr, error: e.message };
+    return { status: null, location: null, ct: '', text: '', error: e.message };
   }
-  try {
-    const res = await fetch(url, {
-      redirect: 'manual',
-      headers: { 'user-agent': UA },
-      signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
-    if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(() => {});
-    return {
-      url: urlStr,
-      status: res.status,
-      location: res.headers.get('location') || null,
-      ct: (res.headers.get('content-type') || '').slice(0, 60),
+  if (url.port && !ALLOWED_PORTS.has(Number(url.port))) {
+    return { status: null, location: null, ct: '', text: '', error: `仅允许 80/443 端口，已拒绝：${url.port}` };
+  }
+  const mod = url.protocol === 'https:' ? https : http;
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (payload) => {
+      if (settled) return;
+      settled = true;
+      resolve(payload);
     };
-  } catch (e) {
-    return { url: urlStr, error: safe(e.message, 120) };
-  }
+    let req;
+    try {
+      req = mod.request(
+        url,
+        {
+          method: 'GET',
+          lookup: connectGuardedLookup(),                 // ★ 真正的边界：建连时校验实际地址
+          signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+          headers: {
+            'user-agent': UA,
+            accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,text/plain;q=0.8,*/*;q=0.5',
+            'accept-encoding': 'gzip, deflate, br',
+            // 不发送任何凭据：不带 cookie、不带 authorization
+          },
+        },
+        (res) => {
+          const ct = String(res.headers['content-type'] || '').slice(0, 60);
+          const location = res.headers.location || null;
+          if (!bodyWanted || (res.statusCode >= 300 && res.statusCode < 400) || res.statusCode >= 400) {
+            res.resume();                                  // 丢弃正文，立刻收尾
+            finish({ status: res.statusCode, location, ct, text: '', error: null });
+            return;
+          }
+          readBodyCapped(res, maxBytes).then(({ text, error }) =>
+            finish({ status: res.statusCode, location, ct, text: text || '', error })
+          );
+        }
+      );
+    } catch (e) {
+      finish({ status: null, location: null, ct: '', text: '', error: safe(e.message, 120) });
+      return;
+    }
+    req.on('error', (e) => finish({ status: null, location: null, ct: '', text: '', error: safe(e.message, 120) }));
+    req.end();
+  });
 }
 
-/** 取文本：手动重定向（每跳都过公网校验），带上限读取。 */
+/** 只探响应头（不下载正文）：手动重定向，用来判 301/308 与 location。 */
+async function probe(urlStr) {
+  const r = await httpGetOnce(urlStr, { maxBytes: 0, bodyWanted: false });
+  return {
+    url: urlStr,
+    status: r.status,
+    location: r.location,
+    ct: r.ct,
+    error: r.error || undefined,
+  };
+}
+
+/** 取文本：手动重定向（每跳都过公网校验 + 连接时再校验），带上限读取。 */
 async function getText(urlStr, { maxBytes = MAX_BYTES_TEXT } = {}) {
   let current = urlStr;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    let url;
-    try {
-      url = await assertPublicTarget(current);
-    } catch (e) {
-      return { ok: false, status: null, error: e.message, text: '', ct: '', location: null };
+    const res = await httpGetOnce(current, { maxBytes, bodyWanted: true });
+    if (res.error) {
+      return { ok: false, status: res.status, error: res.error, text: '', ct: res.ct, location: res.location };
     }
-    let res;
-    try {
-      res = await fetch(url, {
-        redirect: 'manual',
-        headers: { 'user-agent': UA },
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
-    } catch (e) {
-      return { ok: false, status: null, error: safe(e.message, 120), text: '', ct: '', location: null };
-    }
-    const ct = (res.headers.get('content-type') || '').slice(0, 60);
-    const location = res.headers.get('location') || null;
     if (res.status >= 300 && res.status < 400) {
-      if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(() => {});
-      if (!location) {
-        return { ok: false, status: res.status, error: null, text: '', ct, location: null };
+      if (!res.location) {
+        return { ok: false, status: res.status, error: null, text: '', ct: res.ct, location: null };
       }
       if (hop === MAX_REDIRECTS) {
-        return { ok: false, status: res.status, error: `重定向超过 ${MAX_REDIRECTS} 跳，已停止`, text: '', ct, location };
+        return {
+          ok: false, status: res.status, location: res.location, ct: res.ct, text: '',
+          error: `重定向超过 ${MAX_REDIRECTS} 跳，已停止`,
+        };
       }
-      current = new URL(location, url).toString();
+      current = new URL(res.location, new URL(current)).toString();
       continue;
     }
-    if (!res.ok) {
-      if (res.body && typeof res.body.cancel === 'function') await res.body.cancel().catch(() => {});
-      return { ok: false, status: res.status, error: null, text: '', ct, location };
+    if (res.status < 200 || res.status >= 300) {
+      return { ok: false, status: res.status, error: null, text: '', ct: res.ct, location: res.location };
     }
-    const { text, error } = await readTextLimited(res, maxBytes);
-    if (error) return { ok: false, status: res.status, error, text: '', ct, location };
-    return { ok: true, status: res.status, error: null, text, ct, location };
+    return { ok: true, status: res.status, error: null, text: res.text, ct: res.ct, location: res.location };
   }
   return { ok: false, status: null, error: '重定向未收敛', text: '', ct: '', location: null };
 }
