@@ -1,0 +1,186 @@
+{
+  "schema": "clawhub.skill.verify.v1",
+  "ok": false,
+  "decision": "fail",
+  "reasons": [
+    "card.missing",
+    "security.status_not_clean"
+  ],
+  "slug": "xiaoyaoclaw-seo-skill",
+  "displayName": "OpenClaw SEO Skill",
+  "pageUrl": "https://clawhub.ai/dtsola/skills/xiaoyaoclaw-seo-skill",
+  "publisherHandle": "dtsola",
+  "publisherDisplayName": "dtsola",
+  "publisherProfileUrl": "https://clawhub.ai/dtsola",
+  "version": "1.0.2",
+  "resolvedFrom": "latest",
+  "tag": null,
+  "createdAt": 1789613477343,
+  "card": {
+    "available": false,
+    "path": "skill-card.md",
+    "url": "https://wry-manatee-359.convex.site/api/v1/skills/xiaoyaoclaw-seo-skill/card?ownerHandle=dtsola&version=1.0.2",
+    "sha256": null,
+    "size": null,
+    "contentType": null
+  },
+  "artifact": {
+    "sourceFingerprint": "fb26a652312959b7bfb754fc2579684aedefaa4cfa78a520e28296c612ce13ca",
+    "bundleFingerprints": [],
+    "files": [
+      {
+        "path": "AGENTS.md",
+        "size": 2283,
+        "sha256": "e5afa1af5b6d9953f28736477e6a47c7bc968e403b885bd1c8aeb8319dae73a9",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "assets/examples/jsonld-site.template.json",
+        "size": 1047,
+        "sha256": "606795e68d47a3ca779bdb3f8e4f2cbb8b330908974612542a0534df3d352b71",
+        "contentType": "application/json"
+      },
+      {
+        "path": "assets/examples/llms.txt.dtsola.example",
+        "size": 1205,
+        "sha256": "8150871210aba89edd8350bf45fbf8d5421f3bda54233eb0a3b4060f074c334f",
+        "contentType": "application/octet-stream"
+      },
+      {
+        "path": "assets/examples/llms.txt.landoo.example",
+        "size": 1214,
+        "sha256": "7b3ea94f9834b6f90e564d311ae43c259133b1f4e303d84a30ef3004a1d0893e",
+        "contentType": "application/octet-stream"
+      },
+      {
+        "path": "assets/examples/llms.txt.xiaoyaoai.example",
+        "size": 1228,
+        "sha256": "1164e1d8b55e67f1d5bb6e360189488a8336336f9f0c135e51a16613ae051b39",
+        "contentType": "application/octet-stream"
+      },
+      {
+        "path": "assets/examples/robots.txt.template",
+        "size": 1087,
+        "sha256": "e143b95d21c49363b6045bdc93a2c56bc29c3bc2f8827db4b6f8a253cbe48f9d",
+        "contentType": "application/octet-stream"
+      },
+      {
+        "path": "assets/readme/community-qr.png",
+        "size": 97430,
+        "sha256": "59634d15133631f52c418403bda5a1117dd8c9f808e841bd6992673ef6744a6b",
+        "contentType": "image/png"
+      },
+      {
+        "path": "assets/readme/hero.svg",
+        "size": 4291,
+        "sha256": "3f53e1f809e50ac77e464fa9fe3e13867a42e68b420983e00e1077cf4c7b7232",
+        "contentType": "image/svg+xml"
+      },
+      {
+        "path": "CLAUDE.md",
+        "size": 10,
+        "sha256": "954ec5dad7eaf581ad4bfa090369b244ac0120b43722ef2efff5ba89fc52046f",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "docs/evidence/security-v1.0.1-2026-09-17.json",
+        "size": 134421,
+        "sha256": "1514be8185565809f76af0bfb3311f526f364b9807dbe948c62f9e43a7a5ed19",
+        "contentType": "application/json"
+      },
+      {
+        "path": "docs/security-status-2026-09-17.md",
+        "size": 6730,
+        "sha256": "4c4138db4fe92a0d871199838145a6bd34c275a978a9bf3c46ad30e7c67e5d9c",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "LICENSE",
+        "size": 1063,
+        "sha256": "40ae557ab28d175b3920683fcf9803f6d82117e857cc501080947b4ae097bb4b",
+        "contentType": "application/octet-stream"
+      },
+      {
+        "path": "PROGRESS.md",
+        "size": 7674,
+        "sha256": "74f0aefc35bd70ff5c3295b89dcf8375e073f8951bdf953a05eb5487f2dadb07",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "README.en.md",
+        "size": 13539,
+        "sha256": "99e1a2ba690cb80eb9f0c5a6f2a0bbc2ffc98a46f32b83901fc07fc34ebf95a8",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "README.md",
+        "size": 13141,
+        "sha256": "a883d604e98041333e144397ceb3d746b8dd8285cc9d36f68455ce6fe901d939",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "references/ai-seo.md",
+        "size": 10105,
+        "sha256": "7647c43a1714085c9511296e98c22dd95cb60a25342dcc35f43641cb19d9bbef",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "references/content-quality.md",
+        "size": 6633,
+        "sha256": "f1a89d6cd6bf8d707739cb8f63b37548cca380e6c21877a5d874a06148dd4097",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "references/on-page.md",
+        "size": 5422,
+        "sha256": "1c0c3c35522aa8fcaf81fe0edc3eafc4bbcc5f32c2bf1e4597e643e99f061c65",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "references/schema.md",
+        "size": 5828,
+        "sha256": "97c79e231a5fed9714744a160fd5c5240cd77932ab14d9e4eb2c5a21b0bbe4c3",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "references/technical-seo.md",
+        "size": 14394,
+        "sha256": "b04c34101bc6fbc0a3b913df60cc52ac4eecfd7913df62a3672e60549cf39aa4",
+        "contentType": "text/markdown"
+      },
+      {
+        "path": "scripts/seo-audit.js",
+        "size": 22024,
+        "sha256": "2db25a3ac2ec93f1d029d0182e7e31687869a5ab73e7f2737da730c4a9554a8b",
+        "contentType": "text/javascript"
+      },
+      {
+        "path": "SKILL.md",
+        "size": 17175,
+        "sha256": "925520ca3a13b8534c0019c43a29e2a95a84505cdcfe3190b0ea782c3133ca5a",
+        "contentType": "text/markdown"
+      }
+    ]
+  },
+  "provenance": {
+    "source": "unavailable",
+    "reason": "No server-resolved GitHub import provenance is stored for this version."
+  },
+  "security": {
+    "status": "suspicious",
+    "passed": false,
+    "rawStatus": "suspicious",
+    "verdict": "suspicious",
+    "confidence": "high",
+    "summary": "This SEO helper is mostly transparent, but its audit script has a remaining web-request boundary weakness that merits review before installing.",
+    "model": null,
+    "checkedAt": 1789613745830,
+    "scannerReports": {
+      "aig": null,
+      "skillspector": null
+    }
+  },
+  "signature": {
+    "status": "unsigned"
+  }
+}

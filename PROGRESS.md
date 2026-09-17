@@ -62,6 +62,13 @@ docs:
   - 回执：`Update submitted for xiaoyaoclaw-seo-skill@1.0.2; pending security scans before it becomes public`
   - 即时状态：`tags.latest` 仍 1.0.1 → 扫描未落地；已排一次性复查（cron `40528787`，11:30）
   - ⏳ GitHub 仍待推（代理 22307 未监听）
+- **2026-09-17 11:0x v1.0.2 复扫：规则扫描清零，LLM 复核仍卡一条 → 已二次加固（提交 `378b2a1`）**
+  - 正式扫描报告（`clawhub scan download`）：**`static-analysis = clean` / `findings: []`** ⇒ 25 条全部消失 ✅
+  - **残留 1**：`security.status = suspicious`，LLM 判词仅一句「audit script has a remaining web-request boundary weakness」（无行级证据）→ 按最可能缺口加固：**弃用 fetch 改 node:http/https**，新增 `connectGuardedLookup()` 在**建连那一刻**校验实际使用的地址（堵 DNS 重绑定 TOCTOU）；**端口白名单 80/443**；解压后计量体积；文件头补「明确不做」清单
+  - **残留 2**：`card.missing` = 平台侧 Skill Card 未生成（CLI `publish.js` 会主动剔除 `skill-card.md` ⇒ 服务端生成，滞后问题，非包内可修）
+  - 加固后：守卫套件全绿 + 三站实测输出与加固前逐字一致（功能无回退）
+  - **beautify 侧对照**：1.0.10 `security.status = clean` / verdict **benign** ⇒ **安全检查已真正通过**，其 verify 只剩同一个 `card.missing`
+  - 待批：发 **v1.0.3** → 复扫，看 LLM 是否转向 clean
 
 ## 待办 / 决策点
 

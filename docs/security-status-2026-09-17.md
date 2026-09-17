@@ -1,5 +1,28 @@
 # ClawHub 安全检查状态核查与修复（2026-09-17）
 
+## 0. v1.0.2 复扫结果（2026-09-17 11:0x 追加）
+
+**规则扫描已清零**：`clawhub scan download` 拿到的正式报告里
+- `static-analysis.json` → **`status: clean` / `findings: []` / `reasonCodes: []`** ⇒ 原先 25 条命中全部消失 ✅
+- `skillspector.json` / `virustotal.json` → `null`（本轮未产出）
+
+**仍未通过的两项**
+1. `security.status = suspicious`（`clawscan.json`，LLM 复核）：判词只有一句 —— *"its audit script has a remaining web-request boundary weakness"*，**无行级证据、无 guidance 字段**。属 LLM 对"先校验后连接"这一模式的定性判断。
+2. `card.missing` —— 平台侧 **Skill Card** 未生成。核查结论：CLI `publish.js:256` 会**主动把 `skill-card.md` 从发布包里剔除**，说明该卡由**服务端生成**（1.0.9 的卡存在、1.0.10/1.0.2 尚无）⇒ **平台侧生成滞后，不是包的问题，也无法靠塞文件解决**。
+
+### 针对 LLM 那条的加固（提交 `378b2a1`）
+
+| 做法 | 说明 |
+|---|---|
+| **连接时校验**（关键） | 弃用 `fetch`，改用 `node:http/https`；`connectGuardedLookup()` 作为 `lookup` 回调，**每次建立 TCP 连接都重新解析并逐个检查将要使用的地址**，命中内网/保留段即失败 → 堵住「先校验后连接」的时间差（DNS 重绑定 TOCTOU）。`assertPublicTarget()` 降级为预检（快速失败 + 友好报错） |
+| **端口白名单** | 只允许 80/443，杜绝把脚本当端口扫描器用 |
+| **解压后再计量** | 支持 gzip/deflate/br 解压，体积上限计**解压后**字节（旧实现量的是压缩流） |
+| **只读约束明文化** | 只发 GET；无 cookie jar、无 Authorization、UA 固定；文件头新增「明确不做」清单：不写文件、不发 POST、不登录、不探测端口、不外发抓取内容 |
+
+**加固后验证**：守卫套件全绿（13 类内网/保留地址 · `127.0.0.1.nip.io` **在建连时**被拒 · 端口白名单 · 体积上限 · 转义剥离 · 解压正常）＋ 公网抓取与跨跳重定向正常 ＋ **三站实测输出与加固前逐字一致**。
+
+---
+
 > 执行人：天桐｜指令：指挥官「处理 OpenClaw SEO Skill 的问题，一共有 22 个」
 > 命令：`clawhub skill verify xiaoyaoclaw-seo-skill`
 
