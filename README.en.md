@@ -43,16 +43,7 @@ This repo *is* the skill package (Agent Skills structure, SKILL.md at root). Two
 git clone https://github.com/dtsola/xiaoyaoclaw-seo-skill
 ```
 
-**Option A: project-level SEO spec inside a website repo (recommended)**
-```bash
-# inside your website repo:
-mkdir -p .agents/skills
-cp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # skill body
-cp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code entry (one line → AGENTS.md)
-cp xiaoyaoclaw-seo-skill/AGENTS.md ./             # read by Codex/Cursor etc.
-```
-
-**Option B: install into your AI tool's skill directory (global)**
+**Option A: install into your AI tool's skill directory (recommended, global)**
 ```bash
 # Claude Code → ~/.claude/skills/xiaoyaoclaw-seo-skill/
 # Codex       → ~/.codex/skills/
@@ -60,9 +51,14 @@ cp xiaoyaoclaw-seo-skill/AGENTS.md ./             # read by Codex/Cursor etc.
 # others      → corresponding Agent Skills dir
 ```
 
+**Option B: project-scoped use (optional)** — keep the skill folder inside your project's skill location (e.g. `.agents/skills/`) so the coding tool finds it there.
+```bash
+mkdir -p .agents/skills && cp -r xiaoyaoclaw-seo-skill .agents/skills/
+```
+
 > The skill targets **websites / coding tools** (Agent Skills open standard) — no need to install into OpenClaw's skills directory.
 
-> 🔒 **No persistence**: the skill installs nothing that stays resident — no cron jobs, no daemons, no startup scripts, no cross-session state files. Copying `AGENTS.md` / `CLAUDE.md` above is a **manual, one-off** action that puts static docs in *your* repo (delete the files to undo it); it is not an automatic persistence mechanism.
+> 🔒 **No persistence**: the skill installs nothing that stays resident — no cron jobs, no daemons, no startup scripts, no cross-session state files, and it leaves no background work behind. It also never writes into your project on its own: file edits happen only **after you confirm them**.
 
 ## Usage
 

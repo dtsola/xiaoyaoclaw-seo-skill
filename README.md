@@ -43,16 +43,7 @@
 git clone https://github.com/dtsola/xiaoyaoclaw-seo-skill
 ```
 
-**用法 A：放进网站仓库做项目级 SEO 规范（推荐）**
-```bash
-# 在网站仓库根目录：
-mkdir -p .agents/skills
-cp -r xiaoyaoclaw-seo-skill .agents/skills/xiaoyaoclaw-seo-skill   # 技能本体
-cp xiaoyaoclaw-seo-skill/CLAUDE.md ./             # Claude Code 入口（一行指向 AGENTS.md）
-cp xiaoyaoclaw-seo-skill/AGENTS.md ./             # Codex/Cursor 等读取
-```
-
-**用法 B：装进 AI 工具的技能目录（全局可用）**
+**用法 A：装进 AI 工具的技能目录（推荐，全局可用）**
 ```bash
 # Claude Code → ~/.claude/skills/xiaoyaoclaw-seo-skill/
 # Codex       → ~/.codex/skills/
@@ -60,9 +51,14 @@ cp xiaoyaoclaw-seo-skill/AGENTS.md ./             # Codex/Cursor 等读取
 # 其他工具    → 对应 Agent Skills 目录
 ```
 
+**用法 B：项目级使用（可选）** —— 把技能目录放到项目内的技能位置（如 `.agents/skills/`），编码工具在该项目里即可发现它。
+```bash
+mkdir -p .agents/skills && cp -r xiaoyaoclaw-seo-skill .agents/skills/
+```
+
 > 技能是给**网站/编码工具**用的（Agent Skills 开放标准），无需安装到 OpenClaw 的 skills 目录。
 
-> 🔒 **无持久化**：技能**不安装常驻机制**——不建 cron、不起守护进程、不写启动脚本、不写跨会话状态文件。上面的 `cp AGENTS.md / CLAUDE.md` 是**你手动、一次性**把静态文档放进自己仓库（删文件即撤销），不是自动持久化。
+> 🔒 **无持久化**：技能**不安装任何常驻机制**——不建 cron、不起守护进程、不写启动脚本、不写跨会话状态文件；运行结束后不留后台任务。它也不会自动往你的项目里写文件：改代码/配置一律在**你确认之后**才发生。
 
 ## 使用
 

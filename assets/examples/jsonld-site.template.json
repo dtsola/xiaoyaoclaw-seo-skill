@@ -21,7 +21,7 @@
       "name": "<站点名>",
       "url": "https://<canonical-host>/",
       "publisher": { "@id": "https://<canonical-host>/#organization" },
-      "inLanguage": "<inLanguage: 站点主语言，按实际填写 —— 中文站 zh-CN / 英文站 en / 多语站见 hreflang 方案>",
+      "inLanguage": "<replace with the language this site actually publishes in>",
       "potentialAction": {
         "@type": "SearchAction",
         "target": "https://<canonical-host>/search?q={search_term_string}",
