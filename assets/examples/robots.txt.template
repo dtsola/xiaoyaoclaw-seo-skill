@@ -8,27 +8,43 @@
 
 User-agent: *
 Allow: /
+# 屏蔽后台管理路径（示例，按实际调整）
+# ⚠️ 这些 Disallow 必须写在**每一个**你希望生效的 UA 组里：robots.txt 的规则
+#    只对「最近一个 User-agent 行」生效，写在最后一个组之后的 Disallow 只约束
+#    那个组（这里原本会变成只约束 Bytespider）。
+#    真正的访问控制靠应用层鉴权，robots.txt 只是君子协定。
+Disallow: /console
+Disallow: /admin
 
 # AI 搜索/训练 bot 显式放行（内容站默认策略；如不想被爬可删对应行）
+# 放行的同时重复一遍后台屏蔽规则，保证这些 bot 也不会去抓后台路径
 User-agent: GPTBot
 Allow: /
+Disallow: /console
+Disallow: /admin
 
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /console
+Disallow: /admin
 
 User-agent: PerplexityBot
 Allow: /
+Disallow: /console
+Disallow: /admin
 
 User-agent: ClaudeBot
 Allow: /
+Disallow: /console
+Disallow: /admin
 
 User-agent: Google-Extended
 Allow: /
+Disallow: /console
+Disallow: /admin
 
 User-agent: Bytespider
 Allow: /
-
-# 屏蔽后台管理路径（示例，按实际调整）
 Disallow: /console
 Disallow: /admin
 

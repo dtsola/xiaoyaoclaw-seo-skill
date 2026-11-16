@@ -181,15 +181,29 @@ allowed-tools:
 ### 检测（⚠️ 反坑必读）
 - **不要只用 web_fetch/curl 判断"无 schema"**——多数 CMS/框架在客户端 JS 注入 JSON-LD，静态抓取会漏报
 - 正确做法：浏览器渲染后执行 `document.querySelectorAll('script[type="application/ld+json"]')`，逐个 `JSON.parse` 并检查 @type
-- 验证富媒体资格：Google Rich Results Test（https://search.google.com/test/rich-results）
+- 验证富媒体资格：Google Rich Results Test（https://search.google.com/test/rich-results）——⚠️ 提交会把 URL/markup 发给 Google，规则见下方「外部校验」
 
 ### 常用类型（模板见 references/schema.md）
 Organization、WebSite（含 SearchAction 站内搜索框）、Article/BlogPosting、FAQPage、Product+Offer、BreadcrumbList、HowTo、Person
 
 ### 生成与落地
 - 给出 JSON-LD 代码 + 插入位置说明（Next.js: `public/` 或 next/script；Halo: 主题模板/插件；静态站: 各页 <head> 或构建注入）
-- 生成后用 Rich Results Test 验证可解析、无错误警告
-- 注意：schema 必须反映页面真实内容（放假的 Product/Review 违反 Google 政策会处罚）
+- 生成后验证可解析、无错误警告
+
+### 外部校验：会把你提交的内容发给第三方（先说明，再征得同意）
+
+以下服务由**第三方（Google）**提供，提交即意味着**站点 URL 或粘贴的 markup 会被发送到该服务**：
+
+| 服务 | 提供方 | 会被提交什么 |
+|---|---|---|
+| Rich Results Test | Google | 待测页面的 URL，或你粘贴的 JSON-LD / HTML 片段 |
+| PageSpeed Insights | Google | 待测页面的 URL |
+
+规则：
+- **提交前先告知**：说清用哪个服务、会提交什么（URL / markup），再问用户是否同意。
+- **默认先本地校验**：JSON-LD 可先用本地方式检查（`JSON.parse` 能否解析、必填字段是否齐全、类型是否合法），本地能判定的不往外发。
+- **敏感/未发布内容不外发**：内网地址、带 token/签名的预览链接、未上线的页面与草稿 schema，一律不提交给外部服务；用户坚持要测时，提醒其先脱敏或改用本地校验。
+- 用户拒绝外部校验 → 只给本地校验结果，并注明「未做 Rich Results 验证」。
 
 ---
 
@@ -222,7 +236,7 @@ Organization、WebSite（含 SearchAction 站内搜索框）、Article/BlogPosti
 ## 执行约定
 
 - 修改文件前先备份或使用 git；涉及删除/迁移/域名 DNS 类操作先征求确认
-- 每次改动后告知验证方式（PageSpeed / Rich Results Test / site: 查询 / GSC 覆盖率 / curl 状态码）
+- 每次改动后告知验证方式（PageSpeed / Rich Results Test / site: 查询 / GSC 覆盖率 / curl 状态码）；用到外部校验服务时，先按「外部校验」一节说明会提交什么并征得同意
 - 抓取失败（超时/被墙/证书错）要区分「站点问题」与「抓取环境问题」，换工具复核后再下结论
 - 分级口径：🔴 阻断索引或访问 / 🟠 明显扣分影响排名 / 🟡 优化项与红利项
 - 语言：按用户提问语言回答（默认中文；英文提问或要求时用英文报告）

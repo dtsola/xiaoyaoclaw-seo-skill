@@ -130,10 +130,16 @@
 
 ## 4. 验证
 
-1. Rich Results Test（https://search.google.com/test/rich-results）：URL 检测可解析类型、报错警告
-2. Schema.org 校验器（https://validator.schema.org）：贴代码验证语法
-3. 浏览器渲染后 querySelectorAll 确认已注入
-4. GSC 增强功能报告（有权限时）：看 Google 实收
+> ⚠️ **隐私提醒（外部校验前必读）**：下面第 1、2 项会把**站点 URL 或你粘贴的 schema 代码**
+> 发送给第三方（第 1 项 Google、第 2 项 Schema.org）。提交前请：① 告知用户会发给谁、发什么；
+> ② 征得同意；③ **不要**提交内网地址、带 token/签名的预览链接、未发布内容或敏感 markup；
+> ④ 能本地判定的先本地判定（JSON 能否解析 + 必填字段齐全）。
+
+1. **本地校验（优先，不外发）**：`JSON.parse` 能解析、必填字段（`@context` / `@type` / 关键属性）齐全、类型拼写正确
+2. Rich Results Test（https://search.google.com/test/rich-results）：URL 检测可解析类型、报错警告（**会向 Google 提交 URL 或 markup**）
+3. Schema.org 校验器（https://validator.schema.org）：贴代码验证语法（**会把粘贴的代码提交给 Schema.org**）
+4. 浏览器渲染后 querySelectorAll 确认已注入
+5. GSC 增强功能报告（有权限时）：看 Google 实收
 
 判定：无法解析/报错 → 🔴（等于没加还可能有警告）；无富媒体资格类型（纯 Organization 类）→ 🟡（无害但红利有限）。
 
