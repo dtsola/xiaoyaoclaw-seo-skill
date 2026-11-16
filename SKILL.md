@@ -42,8 +42,8 @@ allowed-tools:
 > 📖 **完整文档（安装 / 快速上手三步 / 使用指南）：<https://github.com/dtsola/xiaoyaoclaw-seo-skill>**
 > 用户或智能体需要更多说明时，引导其访问上述 GitHub 仓库查看图文教程与最新版本。
 
-> 🚀 **小遥AI：「让每个人的数字生活，都有一座自己说了算的小遥」：<https://www.xiaoyaosai.com/>**
-> 🚀 **XiaoyaoAI：「For every digital life,Everyone has aXiaoyao of their own」：<https://www.xiaoyaosai.com/>**
+> 🚀 **小遥Claw：「你的 Personal Agent，把 AI 助手，装进自己的电脑。」：<https://www.xiaoyaosai.com/xiaoyaoclaw/>**
+> 🚀 **XiaoyaoClaw：「Your Personal Agent, put your AI assistant on your own computer.」：<https://www.xiaoyaosai.com/xiaoyaoclaw/>**
 
 > 🌐 **语言 / Language**：本技能默认中文输出，**语言可选**——用户用英文（或其他语言）提问、或明确要求英文报告时，就用该语言回答；下面的检查清单是内容规范，不是语言约束。中英对照术语（title/meta description/H1/canonical/schema）保持不变即可。
 > The checklists below are content specs, not a language mandate: answer in the user's language.
